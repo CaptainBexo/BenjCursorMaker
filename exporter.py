@@ -56,7 +56,7 @@ def _dib_bytes(image: Image.Image) -> bytes:
 def build_cur(frame: CursorFrame) -> bytes:
     image = frame.image.convert("RGBA")
     if not (1 <= image.width <= 256 and 1 <= image.height <= 256):
-        raise ValueError("CUR chỉ hỗ trợ kích thước từ 1 đến 256 pixel.")
+        raise ValueError("CUR only supports sizes from 1 to 256 pixels.")
     hot_x = min(max(int(frame.hotspot[0]), 0), image.width - 1)
     hot_y = min(max(int(frame.hotspot[1]), 0), image.height - 1)
     payload = _dib_bytes(image)
@@ -99,9 +99,9 @@ def build_ani(frames: list[CursorFrame]) -> bytes:
 
 
 def parse_ani(data: bytes) -> tuple[list[Image.Image], tuple[int, int], list[int]]:
-    """Đọc file .ani (RIFF/ACON) -> (các frame RGBA, hotspot, rates theo 1/60 giây)."""
+    """Parse an .ani file (RIFF/ACON) -> (RGBA frames, hotspot, rates in 1/60 s)."""
     if len(data) < 12 or data[:4] != b"RIFF" or data[8:12] != b"ACON":
-        raise ValueError("Không phải file ANI hợp lệ.")
+        raise ValueError("Not a valid ANI file.")
     frames: list[Image.Image] = []
     hotspot = (0, 0)
     rates: list[int] = []
@@ -138,7 +138,7 @@ def parse_ani(data: bytes) -> tuple[list[Image.Image], tuple[int, int], list[int
                     p = sub_start + sub_size + (sub_size & 1)
         pos = body_end
     if not frames:
-        raise ValueError("ANI không chứa frame nào.")
+        raise ValueError("ANI contains no frames.")
     if not rates:
         rates = [default_rate] * len(frames)
     return frames, hotspot, rates
@@ -203,7 +203,7 @@ def build_install_bat(scheme_name: str, assignments: dict[str, str]) -> str:
         "@echo off",
         "setlocal DisableDelayedExpansion",
         "cd /d \"%~dp0\"",
-        # Prologue: tự chạy lại chính mình ở chế độ ẩn (không hiện cửa sổ cmd).
+        # Prologue: relaunch itself hidden (no cmd window).
         'if "%~1"=="BCM_HIDDEN" goto :install',
         'set "VBS=%TEMP%\\bcm_hide_%RANDOM%.vbs"',
         '> "%VBS%" echo Set s = CreateObject("WScript.Shell"^)',

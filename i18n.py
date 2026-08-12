@@ -1,4 +1,4 @@
-"""Hỗ trợ hai ngôn ngữ: tiếng Việt (mặc định) và tiếng Anh — không pha trộn."""
+"""Two languages: Vietnamese (default) and English — never mixed."""
 
 LANG = "vi"
 
@@ -11,7 +11,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "btn.cursorpack": {"vi": "GÓI CURSOR", "en": "CURSORPACK"},
     "btn.play": {"vi": "PHÁT", "en": "PLAY"},
     "btn.pause": {"vi": "TẠM DỪNG", "en": "PAUSE"},
-    # --- Tooltips editor ---
+    # --- Editor tooltips ---
     "tip.import": {
         "vi": "Mở PNG, GIF, JPG hoặc BMP. GIF sẽ nạp đủ các frame.",
         "en": "Open PNG, GIF, JPG or BMP. GIF loads all frames.",
@@ -51,7 +51,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Currently showing English — click to switch to Vietnamese.",
     },
     "btn.lang": {"vi": "VN", "en": "EN"},
-    # --- Nhóm / canvas ---
+    # --- Groups / canvas ---
     "title.source": {"vi": "NGUỒN / CÁC FRAME GIF", "en": "SOURCE / GIF FRAMES"},
     "title.grid_snap": {"vi": "LƯỚI HÍT / CHỌN VÙNG", "en": "GRID SNAP / SELECTION"},
     "title.hotspot": {"vi": "HOTSPOT // BẤM MỘT PIXEL", "en": "HOTSPOT // CLICK ONE PIXEL"},
@@ -82,7 +82,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "vi": "APPLIED{detail} // {n} role(s) đã lưu — chỉnh ảnh rồi mở lại CURSORPACK để gán tiếp",
         "en": "APPLIED{detail} // {n} role(s) saved — edit the image, then reopen CURSORPACK to assign more",
     },
-    # --- Lỗi / hộp thoại hệ thống ---
+    # --- Errors / system dialogs ---
     "error.open": {"vi": "Không thể mở ảnh", "en": "Cannot open image"},
     "error.crop": {"vi": "Crop thất bại", "en": "Crop failed"},
     "error.export_cur": {"vi": "Export CUR thất bại", "en": "Export CUR failed"},

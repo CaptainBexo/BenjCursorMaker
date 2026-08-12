@@ -1,30 +1,30 @@
 # Benj Cursor Maker — Neon Pixel Edition
 
-Ứng dụng Windows desktop để cắt ảnh/GIF và tạo con trỏ chuột `.cur`, `.ani` cùng gói cursorpack (kèm `install.bat` tự cài). Giao diện PyQt6 phong cách retro 16-bit; mọi thao tác phóng/thu đều dùng **Nearest-Neighbor** để giữ nguyên pixel art. Giao diện hỗ trợ **tiếng Việt / tiếng Anh** (nút EN/VN góc trên phải).
+A Windows desktop app to crop images/GIFs and create `.cur` / `.ani` mouse cursors plus an installable cursor pack (with `install.bat`). PyQt6 retro 16-bit UI — all zoom/scale operations use **Nearest-Neighbor** to keep pixel art crisp. The interface supports **Vietnamese / English** (EN/VN button, top-right corner).
 
-## Tính năng
+## Features
 
-- Import PNG, GIF, JPG/JPEG, BMP — GIF động có Play/Pause và thanh chọn frame (giữ duration từng frame).
-- Kéo chuột trực tiếp trên ảnh để chọn vùng crop, Grid Snap OFF/16/32/48 px.
-- Click một pixel chính xác để đặt **Hotspot** (kèm zoom + pan đồng bộ hai khung xem).
-- Xuất `.cur` (static) và `.ani` chuẩn RIFF/ACON (động, giữ timing từng frame).
-- **Cursorpack Builder**: gán `.cur`/`.ani` hoặc gán thẳng cursor đang chỉnh vào 15 trạng thái Windows (Normal, Help, Text, Busy…); nút **Apply** lưu tạm để gán tiếp, **Save** xuất thư mục pack có `install.inf` + `install.bat` tự cài và kích hoạt.
-- **Preview cursor khi hover** trong Cursorpack Builder: rê chuột lên từng trạng thái là thấy đúng cursor đã gán (kể cả animation), chưa gán thì không hiện.
-- Không cần xuất file trước khi gán: crop + hotspot hiện tại được gán thẳng vào trạng thái Windows.
+- Import PNG, GIF, JPG/JPEG, BMP — animated GIFs with Play/Pause and a frame slider (per-frame durations preserved).
+- Drag directly on the image to select a crop region; Grid Snap OFF/16/32/48 px.
+- Click a single pixel to set the **hotspot** (synchronized zoom + pan on both canvases).
+- Export `.cur` (static) and `.ani` (standard RIFF/ACON, per-frame timing).
+- **Cursorpack Builder**: assign `.cur`/`.ani` files — or the current editor crop + hotspot directly — to 15 Windows states (Normal, Help, Text, Busy…). **Apply** saves temporarily so you can keep assigning; **Save** exports a pack folder with `install.inf` + `install.bat` that installs and activates the scheme.
+- **Hover preview** in the Builder: moving the mouse over a state shows the assigned cursor (animation included); unassigned states show nothing.
+- No file export needed before assigning — the current crop + hotspot go straight into a Windows state.
 
-## Yêu cầu
+## Requirements
 
 - Windows 10/11 64-bit.
-- Python **3.11** trở lên (chỉ cần cho lần chạy đầu tiên).
+- Python **3.11+** (only needed for the first run).
 
-## Chạy (portable)
+## Run (portable)
 
-Double-click **`run.bat`** — không cần cài đặt gì:
+Double-click **`run.bat`** — no installation needed:
 
-- Lần đầu: tự tạo môi trường `.venv`, tự cài dependencies rồi mở app.
-- Các lần sau: mở app ngay, **không hiện cửa sổ cmd**.
+- First run: automatically creates the `.venv` environment and installs dependencies, then opens the app.
+- Later runs: opens the app directly, **no cmd window** appears.
 
-Hoặc chạy thủ công:
+Or run manually:
 
 ```bash
 python -m venv .venv
@@ -33,46 +33,46 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-## Cách sử dụng
+## Usage
 
-1. Bấm **MỞ ẢNH** (IMPORT), chọn ảnh hoặc GIF.
-2. Với GIF: **PHÁT/TẠM DỪNG** hoặc kéo thanh frame.
-3. Chọn Grid Snap rồi kéo trên ảnh để khoanh vùng; bấm **CẮT VÙNG** (APPLY CROP) — vùng crop áp dụng cho mọi frame.
-4. Trong ô HOTSPOT, click pixel làm điểm chạm của cursor (đồng bộ mọi frame).
-5. **XUẤT .CUR** cho frame hiện tại, hoặc **XUẤT .ANI** cho toàn bộ animation.
-6. **GÓI CURSOR** (CURSORPACK): chọn trạng thái → gán thẳng cursor đang chỉnh (GÁN CURSOR HIỆN TẠI) hoặc từ file (GÁN .CUR / .ANI). **Apply** lưu tạm và đóng để chỉnh ảnh gán tiếp; **Save** xuất pack.
+1. Click **IMPORT** and pick an image or GIF.
+2. For GIFs: **PLAY/PAUSE** or drag the frame slider.
+3. Pick a Grid Snap, then drag on the image to select the region; click **APPLY CROP** — the crop applies to every frame.
+4. In the HOTSPOT box, click the pixel that should be the cursor's touch point (applied to all frames).
+5. **EXPORT .CUR** for the current frame, or **EXPORT .ANI** for the whole animation.
+6. **CURSORPACK**: select a state → assign the current cursor directly (**ASSIGN CURRENT CURSOR**) or from a file (**ASSIGN .CUR / .ANI**). **Apply** saves and closes so you can edit the image and keep assigning; **Save** exports the pack.
 
-## Cài cursorpack trên Windows
+## Installing a cursor pack on Windows
 
-App xuất thẳng một **thư mục mang tên scheme** (không nén):
+The app exports a plain **folder named after the scheme** (no archive):
 
-1. Save → chọn thư mục cha → app tạo `<Tên pack>/` chứa `install.bat`, `install.inf`, `README.txt` và các cursor.
-2. Mở thư mục đó, double-click `install.bat` → **Yes** khi Windows hỏi quyền Administrator.
-3. Script tự copy cursor vào `%WINDIR%\Cursors\<Tên pack>`, đăng ký và kích hoạt scheme, refresh Windows. Không hiện cửa sổ cmd.
+1. After Save, pick a parent folder — the app creates `<Scheme Name>/` containing `install.bat`, `install.inf`, `README.txt` and the cursors.
+2. Open that folder and double-click `install.bat` → **Yes** when Windows asks for Administrator rights.
+3. The script copies the cursors into `%WINDIR%\Cursors\<Scheme Name>`, registers and activates the scheme, then refreshes Windows. No cmd window appears.
 
-> Windows có thể cảnh báo vì installer không có chữ ký số. Script chỉ thao tác trong phạm vi cursor scheme của user hiện tại.
+> Windows may warn because the installer is unsigned. The script only touches the current user's cursor scheme.
 
-## Kiểm thử
+## Tests
 
 ```bash
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-## Cấu trúc
+## Project structure
 
 ```
 main.py              # entry point
-ui.py                # toàn bộ widget/giao diện + luồng tương tác
-image_processor.py   # load frame, crop, grid snap, Nearest-Neighbor resize
-exporter.py          # writer CUR/ANI/install.inf/install.bat, parser ANI, xuất cursorpack
-i18n.py              # bảng dịch tiếng Việt / tiếng Anh
-tooltip_style.py     # vô hiệu hoá animation tooltip hệ thống
-tests/               # test định dạng nhị phân, pixel, smoke test UI
-run.bat              # launcher portable (tự tạo venv, chạy ẩn)
+ui.py                # all widgets/UI + interaction flow
+image_processor.py   # frame loading, crop, grid snap, Nearest-Neighbor resize
+exporter.py          # CUR/ANI/install.inf/install.bat writers, ANI parser, cursor pack export
+i18n.py              # Vietnamese / English translation table
+tooltip_style.py     # disables system tooltip animation
+tests/               # binary format, pixel processing and UI smoke tests
+run.bat              # portable launcher (auto venv, hidden console)
 ```
 
-## Lưu ý định dạng
+## Format notes
 
-- Cursor Windows tối đa 256×256 px — ảnh lớn hơn được thu bằng Nearest-Neighbor.
-- `.cur` dùng DIB BGRA 32-bit + AND mask, kèm hotspot.
-- `.ani` đóng gói frame CUR trong RIFF/ACON, duration quy đổi sang tick 1/60 giây theo chuẩn Windows.
+- Windows cursors are limited to 256×256 px — larger crops are downscaled with Nearest-Neighbor.
+- `.cur` uses 32-bit BGRA DIB + AND mask, with hotspot.
+- `.ani` packs CUR frames in RIFF/ACON; durations are converted to 1/60 s ticks per the Windows spec.

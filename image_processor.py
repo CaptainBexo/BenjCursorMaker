@@ -27,7 +27,7 @@ class ImageDocument:
                 duration = max(10, int(raw.info.get("duration", opened.info.get("duration", 100)) or 100))
                 frames.append(ImageFrame(raw.convert("RGBA").copy(), duration))
         if not frames:
-            raise ValueError("Tệp ảnh không chứa frame hợp lệ.")
+            raise ValueError("Image file contains no valid frames.")
         return cls(source, frames)
 
 
@@ -60,7 +60,7 @@ def crop_image(image: Image.Image, rect: tuple[int, int, int, int]) -> Image.Ima
     x1, y1 = max(0, x1), max(0, y1)
     x2, y2 = min(image.width, x2), min(image.height, y2)
     if x2 <= x1 or y2 <= y1:
-        raise ValueError("Vùng cắt phải có chiều rộng và chiều cao lớn hơn 0.")
+        raise ValueError("Crop region must have width and height greater than 0.")
     return image.crop((x1, y1, x2, y2)).convert("RGBA")
 
 

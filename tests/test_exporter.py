@@ -65,7 +65,7 @@ def test_install_inf_maps_windows_roles_and_escapes_scheme_name():
 
 
 def test_parse_ani_roundtrip():
-    """build_ani -> parse_ani khôi phục đúng frame, hotspot và tốc độ."""
+    """build_ani -> parse_ani round-trips frames, hotspot and rates."""
     from PIL import Image
 
     from exporter import CursorFrame, build_ani, parse_ani
@@ -83,7 +83,7 @@ def test_parse_ani_roundtrip():
 
 
 def test_run_bat_hides_console_and_uses_pythonw():
-    """run.bat phải tự chạy lại ẩn và khởi động app bằng pythonw (không dính console)."""
+    """run.bat must relaunch itself hidden and start the app with pythonw (no console)."""
     from pathlib import Path
 
     run_bat = Path(__file__).resolve().parent.parent / "run.bat"
@@ -93,12 +93,12 @@ def test_run_bat_hides_console_and_uses_pythonw():
     assert 'Set s = CreateObject("WScript.Shell"^)' in content
     assert "s.Run \"cmd /c \"\"%~f0\"\" BCM_HIDDEN\", 0, False" in content
     assert "pythonw.exe" in content
-    # app chạy bằng pythonw THẬT (GUI subsystem, ws=1 -> window hiện, không console) + PYTHONPATH trỏ venv
+    # app runs on the REAL pythonw (GUI subsystem, ws=1 -> window shows, no console) + PYTHONPATH to venv
     assert 's.Run """%PYW%"" main.py", 1, False' in content
     assert 'set "PYTHONPATH=%~dp0.venv\\Lib\\site-packages"' in content
     assert 'findstr /b "home" ".venv\\pyvenv.cfg"' in content
     assert "start \"\"" not in content
-    # không còn chạy app bằng python.exe dính console
+    # no longer runs the app with console-bound python.exe
     assert ".venv\\Scripts\\python.exe main.py" not in content
 
 
@@ -124,34 +124,34 @@ def test_cursorpack_folder_named_after_scheme_contains_inf_bat_and_cursor(tmp_pa
 
 
 def test_install_bat_hides_console():
-    """install.bat phải tự chạy lại ở chế độ ẩn: không bật cửa sổ cmd."""
+    """install.bat must relaunch itself hidden: no cmd window appears."""
     bat = build_install_bat("Neon Pack", {"Arrow": "Normal.cur", "IBeam": "Text.cur"})
-    # prologue relaunch ẩn qua wscript, trước mọi công việc cài đặt
+    # hidden wscript relaunch prologue, before any install work
     assert 'if "%~1"=="BCM_HIDDEN" goto :install' in bat
     assert 'Set s = CreateObject("WScript.Shell"^)' in bat
     assert 's.Run "cmd /c ""%~f0"" BCM_HIDDEN", 0, False' in bat
     assert 'cscript //nologo "%VBS%" >nul 2>&1' in bat
     assert bat.index(":install") < bat.index("net session")
-    # instance nâng quyền cũng chạy ẩn
+    # the elevated instance also runs hidden
     assert "-WindowStyle Hidden" in bat
     assert "-ArgumentList 'BCM_HIDDEN'" in bat
-    # các dòng cài đặt cốt lõi vẫn nguyên
+    # core install lines stay intact
     assert 'set "PACK_DIR=%WINDIR%\\Cursors\\Neon Pack"' in bat
     assert 'reg add "HKCU\\Control Panel\\Cursors" /v "Arrow"' in bat
 
 
 def test_install_bat_relaunch_runs_body_hidden(tmp_path):
-    """Chạy thật prologue: instance ẩn phải thực thi được phần thân (dùng body đánh dấu, không đụng registry)."""
+    """Run the real prologue: the hidden instance must execute the body (marker body, no registry touch)."""
     import os
     import subprocess
 
     full = build_install_bat("Neon Pack", {"Arrow": "Normal.cur"})
-    # cắt ở dòng nhãn ":install" (dòng riêng), không phải "goto :install"
+    # cut at the ":install" label line (own line), not "goto :install"
     prologue = full.split("\r\n:install\r\n", 1)[0] + "\r\n:install\r\n"
     marker = tmp_path / "relaunch-marker.txt"
     body = f'echo done > "{marker}"\r\n'
     bat_file = tmp_path / "test_install.bat"
-    # build_install_bat đã có sẵn \r\n -> ghi nhị phân, không để text mode dịch lại
+    # build_install_bat already emits \r\n -> write bytes, avoid text-mode translation
     bat_file.write_bytes((prologue + body).encode("utf-8"))
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     result = subprocess.run(
@@ -162,13 +162,13 @@ def test_install_bat_relaunch_runs_body_hidden(tmp_path):
         creationflags=flags,
     )
     assert result.returncode == 0, result.stderr
-    # relaunch bất đồng bộ (s.Run 0, False) -> instance ẩn cần chút thời gian để spawn
+    # async relaunch (s.Run 0, False) -> the hidden instance needs a moment to spawn
     import time
 
     deadline = time.time() + 5
     while not marker.exists() and time.time() < deadline:
         time.sleep(0.1)
-    assert marker.exists(), "instance ẩn (wscript) không chạy được phần thân"
+    assert marker.exists(), "hidden instance (wscript) did not run the body"
 
 
 def test_install_bat_activates_only_assigned_roles_and_uses_safe_folder():

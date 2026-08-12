@@ -49,14 +49,14 @@ def test_every_main_action_button_has_a_short_clear_tooltip():
 
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
-    # tiếng Việt mặc định
+    # Vietnamese by default
     expected = {"MỞ ẢNH", "CẮT VÙNG", "XUẤT .CUR", "XUẤT .ANI", "GÓI CURSOR", "PHÁT", "VN"}
     buttons = {button.text(): button.toolTip() for button in window.findChildren(QPushButton)}
     assert expected <= buttons.keys(), buttons.keys()
     for name in expected:
         assert buttons[name].strip(), name
         assert len(buttons[name]) <= 180, name
-    # tiếng Anh
+    # English
     window.toggle_lang()
     expected_en = {"IMPORT", "APPLY CROP", "EXPORT .CUR", "EXPORT .ANI", "CURSORPACK", "PLAY", "EN"}
     buttons_en = {button.text(): button.toolTip() for button in window.findChildren(QPushButton)}
@@ -420,8 +420,8 @@ def test_transparency_pattern_matches_image_pixels():
     pattern = transparency_pattern(8).toImage()
     assert pattern.width() == 16 and pattern.height() == 16
     c00 = pattern.pixelColor(0, 0)
-    assert c00 == pattern.pixelColor(7, 7), "ô bàn cờ phải đúng kích thước 1 pixel ảnh"
-    assert c00 != pattern.pixelColor(8, 0), "2 pixel cạnh nhau phải khác màu"
+    assert c00 == pattern.pixelColor(7, 7), "checkerboard tile must be exactly 1 image pixel"
+    assert c00 != pattern.pixelColor(8, 0), "adjacent pixels must differ in color"
     assert c00 != pattern.pixelColor(0, 8)
     assert pattern.pixelColor(8, 8) == pattern.pixelColor(15, 15)
 
@@ -527,7 +527,7 @@ def test_crop_canvas_zoom_control_updates_both_canvases():
     assert control.layout().itemAt(0).widget() is control.in_button
     assert control.layout().itemAt(1).widget() is control.label
     assert control.layout().itemAt(2).widget() is control.out_button
-    # nằm ở góc dưới bên trái canvas crop
+    # anchored at the bottom-left of the crop canvas
     assert control.parent() is window.crop_canvas
     assert control.x() == 8
     assert control.y() == window.crop_canvas.height() - control.height() - 8
@@ -545,7 +545,7 @@ def test_crop_canvas_zoom_control_updates_both_canvases():
 
 
 def test_pack_dialog_preview_shows_assigned_cursor_on_hover():
-    """Hover vào trạng thái đã gán: ẩn con trỏ hệ thống, hiện preview cursor đã gán, chặn tooltip."""
+    """Hover an assigned state: hide the system cursor, show the assigned cursor preview, suppress tooltip."""
     from PIL import Image
 
     from PyQt6.QtCore import QEvent, QPointF, Qt
@@ -574,13 +574,13 @@ def test_pack_dialog_preview_shows_assigned_cursor_on_hover():
         QEvent.Type.HoverEnter, QPointF(center), QPointF(300, 300), QPointF(0, 0),
         Qt.KeyboardModifier.NoModifier,
     )
-    # trả True = chặn tooltip, preview hiển thị
+    # True = tooltip suppressed, preview shown
     assert dialog.eventFilter(viewport, enter) is True
     assert dialog._preview.isVisible()
     assert not dialog._preview.pixmap().isNull()
     assert viewport.cursor().shape() == Qt.CursorShape.BlankCursor
 
-    # di chuyển chuột -> preview bám theo
+    # moving the mouse -> preview follows
     move = QHoverEvent(
         QEvent.Type.HoverMove, QPointF(center.x() + 4, center.y() + 2), QPointF(320, 310), QPointF(center.x(), center.y()),
         Qt.KeyboardModifier.NoModifier,
@@ -604,12 +604,12 @@ def test_pack_dialog_preview_hidden_for_unassigned_role():
     app.processEvents()
 
     viewport = dialog.list.viewport()
-    item_rect = dialog.list.visualItemRect(dialog.list.item(0))  # chưa gán
+    item_rect = dialog.list.visualItemRect(dialog.list.item(0))  # unassigned
     enter = QHoverEvent(
         QEvent.Type.HoverEnter, QPointF(item_rect.center()), QPointF(300, 300), QPointF(0, 0),
         Qt.KeyboardModifier.NoModifier,
     )
-    # không preview -> False, tooltip vẫn chảy
+    # no preview -> False, tooltip flows
     assert dialog.eventFilter(viewport, enter) is False
     assert not dialog._preview.isVisible()
     assert viewport.cursor().shape() != Qt.CursorShape.BlankCursor
@@ -660,7 +660,7 @@ def test_pack_dialog_preview_hides_on_leave():
 
 
 def test_pack_dialog_preview_turns_off_when_moving_to_unassigned():
-    """Chuyển từ mục đã gán sang mục chưa gán -> preview tắt ngay."""
+    """Moving from an assigned item to an unassigned one -> preview turns off immediately."""
     from PIL import Image
 
     from PyQt6.QtCore import QEvent, QPointF, Qt
@@ -709,7 +709,7 @@ def test_language_toggle_button_top_right():
     window.show()
     app.processEvents()
     btn = window.lang_button
-    # mặc định tiếng Việt -> nút hiện VN, nằm nửa bên phải cửa sổ
+    # Vietnamese by default -> button shows VN, sits in the right half
     assert btn.text() == "VN", btn.text()
     assert btn.x() > window.width() // 2, btn.x()
     assert btn.toolTip().strip()
@@ -722,7 +722,7 @@ def test_language_toggle_switches_all_texts():
     window.show()
     app.processEvents()
 
-    # mặc định VI
+    # default VI
     assert window.import_button.text() == "MỞ ẢNH"
     assert window.source_box.title() == "NGUỒN / CÁC FRAME GIF"
     assert window.play_button.text() == "PHÁT"
@@ -752,7 +752,7 @@ def test_dialog_follows_current_language():
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
 
-    # chuyển sang EN trước
+    # switch to EN first
     window.toggle_lang()
     dialog = CursorPackDialog(window, window)
     assert "— not assigned —" in dialog.list.item(0).text()
@@ -761,7 +761,7 @@ def test_dialog_follows_current_language():
     assert dialog.windowTitle() == "CURSORPACK BUILDER"
     dialog.close()
 
-    # quay lại VI
+    # back to VI
     window.toggle_lang()
     dialog2 = CursorPackDialog(window, window)
     assert "— chưa gán —" in dialog2.list.item(0).text()
@@ -821,7 +821,7 @@ def test_pack_dialog_buttons_use_floating_tip_like_editor():
         QEvent.Type.HoverMove, QPointF(10, 10), QPointF(320, 430), QPointF(5, 5),
         Qt.KeyboardModifier.NoModifier,
     )
-    dialog.eventFilter(button, move)  # tooltip dài bị clamp màn hình — không kiểm tra vị trí tuyệt đối ở đây
+    dialog.eventFilter(button, move)  # wide tooltip clamps to the screen — no absolute position check here
 
     leave = QHoverEvent(
         QEvent.Type.HoverLeave, QPointF(10, 10), QPointF(320, 430), QPointF(10, 10),
@@ -830,7 +830,7 @@ def test_pack_dialog_buttons_use_floating_tip_like_editor():
     dialog.eventFilter(button, leave)
     assert not tip.isVisible()
 
-    # tooltip ngắn (nút Cancel) thì vị trí không bị clamp, bám đúng chuột
+    # short tooltip (Cancel) is not clamped, follows the mouse exactly
     from PyQt6.QtWidgets import QPushButton
 
     cancel = [w for w in dialog._tip_widgets if isinstance(w, QPushButton) and w.text() == "Cancel"][0]
@@ -866,7 +866,7 @@ def test_pack_dialog_buttons_right_aligned():
 
 
 def test_pack_dialog_apply_assigns_current_cursor_directly():
-    """Bấm Apply trực tiếp (không gán trước) với ảnh + role đã chọn -> gán thẳng + lưu tạm."""
+    """Click Apply directly (no prior assignment) with image + role selected -> assign directly + save temporarily."""
     from PIL import Image
 
     from PyQt6.QtWidgets import QDialog
@@ -886,7 +886,7 @@ def test_pack_dialog_apply_assigns_current_cursor_directly():
     dialog.name_edit.setText("My Pack")
     dialog.list.setCurrentRow(1)  # Help
     dialog.apply_pack()
-    assert "Help" in window.pack_assignments, "Apply phải gán thẳng cursor hiện tại"
+    assert "Help" in window.pack_assignments, "Apply must assign the current cursor directly"
     assert "Help" in window.pack_cursors
     assert window.pack_assignments["Help"].name == "Help.cur"
     assert window.pack_name == "My Pack"
@@ -896,7 +896,7 @@ def test_pack_dialog_apply_assigns_current_cursor_directly():
 
 
 def test_pack_dialog_save_assigns_current_cursor_directly():
-    """Bấm Save trực tiếp với ảnh + role đã chọn -> tự gán thẳng rồi mới xuất."""
+    """Click Save directly with image + role selected -> auto-assign, then export."""
     from PIL import Image
 
     from PyQt6.QtWidgets import QDialog
@@ -946,7 +946,7 @@ def test_pack_dialog_apply_persists_without_exporting():
     assert "Help" in dialog.assignments
 
     dialog.apply_pack()
-    # đã lưu vào main window, không kích hoạt xuất (result != Accepted)
+    # saved to the main window, no export triggered (result != Accepted)
     assert window.pack_assignments.get("Help") == dialog.assignments["Help"]
     assert "Help" in window.pack_cursors
     assert window.pack_name == "My Pack"
@@ -1012,7 +1012,7 @@ def test_pan_syncs_between_canvases():
         p = QPointF(px, py)
         return QMouseEvent(etype, p, canvas.mapToGlobal(p.toPoint()).toPointF(), button, buttons, Qt.KeyboardModifier.NoModifier)
 
-    # pan trên crop canvas -> hotspot phải đi theo
+    # pan on the crop canvas -> hotspot canvas must follow
     before = hotspot._target
     crop.mousePressEvent(ev_at(crop, 100, 100, Qt.MouseButton.MiddleButton, Qt.MouseButton.MiddleButton, QEvent.Type.MouseButtonPress))
     crop.mouseMoveEvent(ev_at(crop, 120, 130, Qt.MouseButton.NoButton, Qt.MouseButton.MiddleButton, QEvent.Type.MouseMove))
@@ -1022,7 +1022,7 @@ def test_pan_syncs_between_canvases():
     assert hotspot._target.x() == before.x() + 20, (before.x(), hotspot._target.x())
     assert hotspot._target.y() == before.y() + 30
 
-    # pan ngược lại trên hotspot -> crop phải đi theo
+    # pan back on the hotspot canvas -> crop canvas must follow
     crop_before = crop._target
     hotspot.mousePressEvent(ev_at(hotspot, 100, 100, Qt.MouseButton.MiddleButton, Qt.MouseButton.MiddleButton, QEvent.Type.MouseButtonPress))
     hotspot.mouseMoveEvent(ev_at(hotspot, 110, 115, Qt.MouseButton.NoButton, Qt.MouseButton.MiddleButton, QEvent.Type.MouseMove))

@@ -152,7 +152,7 @@ def pil_pixmap(image) -> QPixmap:
 
 
 def _cur_hotspot(data: bytes) -> tuple[int, int]:
-    """Đọc hotspot từ ICONDIRENTRY của file .cur (type 2) — không phụ thuộc PIL."""
+    """Read hotspot from the ICONDIRENTRY of a .cur file (type 2) — independent of PIL."""
     if len(data) >= 22 and data[2:4] == b"\x02\x00":
         return (
             struct.unpack_from("<H", data, 10)[0],
@@ -169,7 +169,7 @@ _PATTERN_CACHE: dict[int, QPixmap] = {}
 
 
 def transparency_pattern(scale: int) -> QPixmap:
-    """Nền bàn cờ cho vùng trong suốt — mỗi ô đúng 1 pixel ảnh (2x2 pixel lặp lại)."""
+    """Checkerboard background for transparent areas — each tile is exactly 1 image pixel (2x2 repeated)."""
     pattern = _PATTERN_CACHE.get(scale)
     if pattern is None:
         s = max(scale, 1)
@@ -184,7 +184,7 @@ def transparency_pattern(scale: int) -> QPixmap:
 
 
 class FloatingTip(QLabel):
-    """Tooltip riêng: nhãn nổi bám theo chuột, không dùng cơ chế tooltip hệ thống."""
+    """Custom tooltip: floating label that follows the mouse, no system tooltip."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(
@@ -217,7 +217,7 @@ class FloatingTip(QLabel):
 
 
 class ZoomControl(QWidget):
-    """Điều khiển zoom gọn ở góc canvas: [+] 100% [-]."""
+    """Compact zoom control in the canvas corner: [+] 100% [-]."""
 
     def __init__(self, on_zoom_in=None, on_zoom_out=None, parent=None) -> None:
         super().__init__(parent)
@@ -258,7 +258,7 @@ class ZoomControl(QWidget):
 
 
 class FloatingTipOwner:
-    """Mixin: cơ chế floating tip (bám chuột, mượt) dùng chung cho Editor và các dialog."""
+    """Mixin: smooth mouse-following floating tip shared by the Editor and dialogs."""
 
     def _init_floating_tip(self) -> None:
         self._tip = FloatingTip(self)
@@ -273,7 +273,7 @@ class FloatingTipOwner:
         etype = event.type()
         if obj in self._tip_widgets:
             if etype == QEvent.Type.ToolTip:
-                return True  # nuốt tooltip hệ thống, dùng floating tip thay thế
+                return True  # swallow native tooltip, use the floating tip instead
             if etype in (QEvent.Type.HoverEnter, QEvent.Type.HoverMove):
                 self._tip.show_text(obj.toolTip(), event.globalPosition().toPoint())
             elif etype in (QEvent.Type.HoverLeave, QEvent.Type.MouseButtonPress):
@@ -730,8 +730,8 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
                         self._place_preview()
                         return True
                     if self._show_preview(role, event):
-                        return True  # chặn tooltip khi đang preview
-                    self._hide_preview()  # mục chưa gán -> tắt preview cũ
+                        return True  # suppress tooltip while previewing
+                    self._hide_preview()  # unassigned item -> turn the old preview off
                 else:
                     self._hide_preview()
             elif etype in (QEvent.Type.HoverLeave, QEvent.Type.MouseButtonPress):
@@ -741,7 +741,7 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
         return super().eventFilter(obj, event)
 
     def _load_preview(self, role: str) -> tuple[list[QPixmap], tuple[int, int], list[int]] | None:
-        """(pixmaps, hotspot, rates_ms) cho trạng thái đã gán, hoặc None nếu chưa gán/không đọc được."""
+        """(pixmaps, hotspot, rates_ms) for an assigned state, or None if unassigned/unreadable."""
         cached = self._preview_cache.get(role)
         if cached is not None:
             return cached
@@ -880,7 +880,7 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
             self.main_window.pack_name = self.name_edit.text().strip()
 
     def _assign_selected_role_if_possible(self) -> bool:
-        """Gán thẳng cursor đang chỉnh vào trạng thái đang chọn nếu có ảnh. True nếu đã gán."""
+        """Directly assign the current editor cursor to the selected state when an image is open. True if assigned."""
         if self.main_window is None or self.main_window.document is None:
             return False
         row = self.list.currentRow()
@@ -892,7 +892,7 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
         return True
 
     def apply_pack(self) -> None:
-        """Gán thẳng cursor đang chỉnh (nếu có ảnh + đã chọn trạng thái), lưu tạm và đóng để tiếp tục chỉnh ảnh."""
+        """Directly assign the current editor cursor (image + state selected), save temporarily and close to keep editing."""
         assigned = self._assign_selected_role_if_possible()
         if not self.assignments:
             if self.main_window is None or self.main_window.document is None:
@@ -906,7 +906,7 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
         if self.main_window is not None:
             detail = f" → {self._role_at(self.list.currentRow())}" if assigned else ""
             self.main_window.statusBar().showMessage(tr("status.applied", detail=detail, n=len(self.assignments)))
-        self.done(2)  # đóng hộp thoại nhưng không kích hoạt xuất (chỉ Accepted mới xuất)
+        self.done(2)  # close without triggering export (only Accepted exports)
 
     def accept(self) -> None:
         self._assign_selected_role_if_possible()
