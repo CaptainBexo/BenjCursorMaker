@@ -89,3 +89,19 @@ def fit_cursor(image: Image.Image, max_size: int = 256) -> Image.Image:
         canvas.paste(rgba, ((side - rgba.width) // 2, (side - rgba.height) // 2))
         rgba = canvas
     return rgba
+
+
+def maximize_content(image: Image.Image, max_size: int = 256) -> Image.Image:
+    """Upscale (Nearest-Neighbor, uniform) so the LONGEST side equals max_size.
+
+    Small sprites are blown up to fill the 256px cursor box (Windows renders
+    every cursor at a fixed on-screen size, so a bigger file = sharper/larger
+    sprite). Larger images are left alone (fit_cursor will downscale them).
+    """
+    rgba = image.convert("RGBA")
+    side = max(rgba.width, rgba.height)
+    if side < max_size:
+        scale = max_size / side
+        size = (max(1, round(rgba.width * scale)), max(1, round(rgba.height * scale)))
+        rgba = rgba.resize(size, Image.Resampling.NEAREST)
+    return rgba

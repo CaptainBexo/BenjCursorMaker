@@ -139,13 +139,14 @@ def test_pack_dialog_assigns_current_multi_frame_cursor_as_ani_without_export():
     pack.assign_current_cursor()
 
     assert pack.assignments["Arrow"].name == "Arrow.ani"
-    # memory_cursors lưu NỘI DUNG gốc (chưa pad) kèm hotspot theo tỉ lệ trục riêng
+    # memory_cursors lưu NỘI DUNG đã phóng lên 256px (max size), chưa pad vuông
     from exporter import parse_ani
 
     parsed, hot, _rates = parse_ani(pack.memory_cursors["Arrow"])
-    assert [f.size for f in parsed] == [(37, 46)] * 3
-    # hotspot (5,2) trong ảnh 37x46 giữ nguyên (fit_content không scale vì <256)
-    assert hot == (5, 2), hot
+    # 37x46 -> cạnh dài 46 phóng lên 256 -> 206x256
+    assert [f.size for f in parsed] == [(206, 256)] * 3
+    # hotspot (5,2) scale theo tỉ lệ trục riêng: (round(5*206/37), round(2*256/46)) = (28, 11)
+    assert hot == (28, 11), hot
     assert "Arrow.ani" in pack.list.item(0).text()
     assert "[TỪ EDITOR]" in pack.list.item(0).text()
     pack.close()
@@ -1110,7 +1111,7 @@ def test_export_status_shows_real_file_dimensions(tmp_path):
         window.export_cur_file()
     assert out.exists()
     msg = window.statusBar().currentMessage()
-    assert "100" in msg and "100" in msg, msg  # 100×100
+    assert "256" in msg, msg  # 100×100 -> phóng lên 256×256 (max size)
     window.close()
 
 
@@ -1138,7 +1139,7 @@ def test_export_ani_status_shows_real_frame_dimensions(tmp_path):
         window.export_ani_file()
     assert out.exists()
     msg = window.statusBar().currentMessage()
-    assert "80" in msg and "40" not in msg, msg  # 80×40 -> pad vuông 80×80 (Windows scale cursor không vuông bị bẹp)
+    assert "256" in msg, msg  # 80×40 -> phóng lên 256×256 (max size)
     window.close()
 
 
@@ -1181,30 +1182,16 @@ def test_crop_canvas_resets_zoom_on_new_image_size():
     assert canvas._zoom == 3.0
 
 
-def test_pack_dialog_scale_slider_snaps_to_50():
-    """Slider scale 50–300%, snap về bội số của 50."""
-    from PyQt6.QtWidgets import QSlider
-
+def test_pack_dialog_scale_slider_removed():
+    """SCALE slider no longer exists — cursors are always exported at max size."""
     app = QApplication.instance() or QApplication([])
     d = CursorPackDialog(None, None)
-    slider = d.scale_slider
-    assert isinstance(slider, QSlider)
-    assert slider.minimum() == 50 and slider.maximum() == 300
-    assert slider.value() == 100
-    assert d.scale_value_label.text() == "100%"
-    slider.setValue(120)  # snap về 100
-    assert slider.value() == 100
-    assert d.scale_value_label.text() == "100%"
-    slider.setValue(140)  # snap về 150
-    assert slider.value() == 150
-    assert d.scale_value_label.text() == "150%"
-    slider.setValue(300)
-    assert d._scale_factor() == 3.0
+    assert not hasattr(d, "scale_slider")
     d.close()
 
 
-def test_pack_dialog_scale_applies_only_at_save(tmp_path):
-    """SCALE phóng to pixel nội dung lúc Save — memory_cursors giữ bản gốc, file Save to hơn."""
+def test_pack_dialog_always_exports_max_size_cursor(tmp_path):
+    """Cursor luôn xuất ở 256x256 (kích thước tối đa), bất kể nội dung gốc nhỏ."""
     import io
     from pathlib import Path
     from PIL import Image as PILImage
@@ -1223,24 +1210,15 @@ def test_pack_dialog_scale_applies_only_at_save(tmp_path):
     d = CursorPackDialog(w, w)
     d.list.setCurrentRow(0)
     d.assign_current_cursor()
-    # gán xong: memory_cursors vẫn là bản GỐC (nội dung 100x100)
-    data = d.memory_cursors["Arrow"]
-    img = PILImage.open(io.BytesIO(data))
-    assert img.size == (100, 100), img.size
-    # Save 100%: giữ nguyên 100x100
+    # Save: 100x100 được phóng lên 256x256 (max size)
     packed = d._scaled_pack_files()
-    img100 = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
-    assert img100.size == (100, 100), img100.size
-    # Save 300%: pixel phóng 3x -> 300x300, nhưng Windows .cur tối đa 256x256 -> clamp 256x256
-    d.scale_slider.setValue(300)
-    packed = d._scaled_pack_files()
-    img300 = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
-    assert img300.size == (256, 256), img300.size
+    img = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
+    assert img.size == (256, 256), img.size
     w.close()
 
 
-def test_pack_dialog_scale_portrait_content_fills_more(tmp_path):
-    """Nội dung dọc 116x253: Save 100% pad vuông 253x253; Save 300% phóng 3x rồi pad 759x759."""
+def test_pack_dialog_portrait_always_exports_max_size(tmp_path):
+    """Nội dung dọc 116x253 cũng xuất 256x256 (cạnh dài phóng lên 256, pad vuông)."""
     import io
     from pathlib import Path
     from PIL import Image as PILImage
@@ -1263,24 +1241,15 @@ def test_pack_dialog_scale_portrait_content_fills_more(tmp_path):
     d = CursorPackDialog(w, w)
     d.list.setCurrentRow(0)
     d.assign_current_cursor()
-    # gán xong: lưu NỘI DUNG gốc (chưa pad vuông)
-    data = d.memory_cursors["Arrow"]
-    img100 = PILImage.open(io.BytesIO(data))
-    assert img100.size == (116, 253), img100.size
-    # Save 100%: pad vuông theo chiều cao -> 253x253 (giữ tỉ lệ, không méo)
+    # Save: 116x253 -> cạnh dài 253 phóng lên 256 -> pad vuông 256x256
     packed = d._scaled_pack_files()
     img_sq = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
-    assert img_sq.size == (253, 253), img_sq.size
-    # Save 300%: phóng 3x pixel -> 348x759 -> fit_cursor downscale + pad vuông -> 256x256
-    d.scale_slider.setValue(300)
-    packed = d._scaled_pack_files()
-    img300 = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
-    assert img300.size == (256, 256), img300.size
+    assert img_sq.size == (256, 256), img_sq.size
     w.close()
 
 
-def test_assign_file_stores_raw_and_scales_at_save(tmp_path):
-    """assign_file không scale nội dung; _scaled_pack_files phóng pixel theo SCALE lúc Save."""
+def test_assign_file_stores_raw_and_exports_max_size(tmp_path):
+    """assign_file giữ file gốc; _scaled_pack_files phóng lên 256x256 lúc Save."""
     import io
     import unittest.mock as mock
     from pathlib import Path
@@ -1297,14 +1266,9 @@ def test_assign_file_stores_raw_and_scales_at_save(tmp_path):
     with mock.patch.object(QFileDialog, "getOpenFileName", return_value=(str(f), "")):
         d.assign_file()
     assert d.memory_cursors.get("Arrow") is None  # raw — đọc từ đĩa lúc export
-    # Save 100%: giữ nguyên 40x40
+    # Save: 40x40 phóng lên 256x256 (max size)
     packed = d._scaled_pack_files()
     assert any(k.name == "x.cur" for k in packed)
     img = PILImage.open(io.BytesIO(packed[next(k for k in packed if k.name == "x.cur")]))
-    assert img.size == (40, 40), img.size
-    # Save 300%: 40x40 phóng 3x -> 120x120
-    d.scale_slider.setValue(300)
-    packed = d._scaled_pack_files()
-    img = PILImage.open(io.BytesIO(packed[next(k for k in packed if k.name == "x.cur")]))
-    assert img.size == (120, 120), img.size
+    assert img.size == (256, 256), img.size
     d.close()

@@ -174,11 +174,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "vi": "Chọn folder chứa file .cur/.ani",
         "en": "Choose a folder containing .cur/.ani files",
     },
-    "pack.scale_label": {"vi": "TỈ LỆ", "en": "SCALE"},
-    "pack.tip.scale": {
-        "vi": "Phóng to số pixel của con trỏ khi lưu (100% = nguyên bản, 200% = gấp đôi, 300% = gấp ba). Giữ tỉ lệ, không méo — file .ani/.cur lưu ra sẽ chứa hình to hơn.",
-        "en": "Scales the cursor's pixels when saving (100% = original, 200% = double, 300% = triple). Keeps the aspect ratio, no distortion — the saved .ani/.cur contains a larger sprite.",
-    },
     "warn.no_cursors": {
         "vi": "Folder không chứa file .cur hoặc .ani nào.",
         "en": "The folder contains no .cur or .ani files.",

@@ -44,7 +44,7 @@ from exporter import (
     safe_pack_name,
 )
 from i18n import get_lang, set_lang, tr
-from image_processor import ImageDocument, crop_image, fit_content, fit_cursor, snap_rect
+from image_processor import ImageDocument, crop_image, fit_content, fit_cursor, maximize_content, snap_rect
 
 
 RETRO_STYLE = """
@@ -682,21 +682,8 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
         if main_window is not None and main_window.pack_name:
             self.name_edit.setText(main_window.pack_name)
         form.addRow(tr("pack.scheme_label"), self.name_edit)
-        scale_row = QHBoxLayout()
-        self.scale_slider = QSlider(Qt.Orientation.Horizontal)
-        self.scale_slider.setRange(50, 300)
-        self.scale_slider.setSingleStep(50)
-        self.scale_slider.setPageStep(50)
-        self.scale_slider.setValue(100)
-        self.scale_slider.setToolTip(tr("pack.tip.scale"))
-        self.scale_value_label = QLabel("100%")
-        scale_row.addWidget(self.scale_slider)
-        scale_row.addWidget(self.scale_value_label)
-        self.scale_slider.valueChanged.connect(self._on_scale_changed)
-        form.addRow(tr("pack.scale_label"), scale_row)
         layout.addLayout(form)
         self._register_tip_widget(self.name_edit)
-        self._register_tip_widget(self.scale_slider)
         self.list = QListWidget()
         self.list.setToolTip(tr("pack.tip.list"))
         for label, role in CURSOR_ROLES.items():
@@ -856,26 +843,15 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
         self._preview_role = None
         self.list.viewport().unsetCursor()
 
-    def _on_scale_changed(self, value: int) -> None:
-        snapped = round(value / 50) * 50
-        if snapped != value:
-            self.scale_slider.setValue(snapped)
-            return
-        self.scale_value_label.setText(f"{snapped}%")
-
-    def _scale_factor(self) -> float:
-        return self.scale_slider.value() / 100
-
     def _store_memory_cursor(self, role: str) -> None:
-        # Store the CONTENT (fitted, unpadded). SCALE applies at Save time in
-        # _scaled_pack_files by resizing the pixels, so a 300% pack actually
-        # contains a 3x-larger sprite in the .ani/.cur file.
+        # Store the CONTENT (unpadded), upscaled to 256px so the cursor is always
+        # as large as Windows allows. Square-padding happens at Save time.
         mw = self.main_window
         images = mw.cropped_frames or [f.image for f in mw.document.frames]
         frames: list[CursorFrame] = []
         for index, image in enumerate(images):
-            fitted = fit_content(image)
-            # per-axis scale: fit_content keeps the aspect ratio (uniform), so a
+            fitted = maximize_content(image)
+            # per-axis scale: maximize_content keeps the aspect ratio (uniform), so a
             # single fitted.width/max(w,h) would mis-map the hotspot on portrait art.
             sx = fitted.width / max(1, image.width)
             sy = fitted.height / max(1, image.height)
@@ -937,25 +913,19 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
             result.append(CursorFrame(fitted, hot, f.duration_ms))
         return result
 
-    def _scale_frames(self, frames: list[CursorFrame], factor: float) -> list[CursorFrame]:
-        """Uniformly resize the sprite pixels by factor (Nearest-Neighbor), then
-        square-pad. This is what SCALE controls now: a 300% pack stores a 3x-larger
-        sprite inside the .ani/.cur file."""
+    def _maximize_and_pad(self, frames: list[CursorFrame]) -> list[CursorFrame]:
+        """Upscale every frame to 256px (longest side) then square-pad — always max size."""
         result: list[CursorFrame] = []
         for f in frames:
-            if factor != 1.0:
-                nw = max(1, round(f.image.width * factor))
-                nh = max(1, round(f.image.height * factor))
-                img = f.image.resize((nw, nh), Image.Resampling.NEAREST)
-                hx = round(f.hotspot[0] * factor)
-                hy = round(f.hotspot[1] * factor)
-                f = CursorFrame(img, (hx, hy), f.duration_ms)
-            result.append(f)
+            img = maximize_content(f.image)
+            sx = img.width / max(1, f.image.width)
+            sy = img.height / max(1, f.image.height)
+            hot = (round(f.hotspot[0] * sx), round(f.hotspot[1] * sy))
+            result.append(CursorFrame(img, hot, f.duration_ms))
         return self._pad_square(result)
 
     def _scaled_pack_files(self) -> dict[Path, bytes]:
-        """All assigned cursors, pixel-scaled by the SCALE slider and square-padded."""
-        factor = self._scale_factor()
+        """All assigned cursors, upscaled to 256px and square-padded (always max size)."""
         result: dict[Path, bytes] = {}
         for role, path in self.assignments.items():
             if role in self.memory_cursors:
@@ -971,7 +941,7 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
             else:  # .cur
                 image = Image.open(io.BytesIO(data)).convert("RGBA")
                 frames = [CursorFrame(image, _cur_hotspot(data), 100)]
-            frames = self._scale_frames(frames, factor)
+            frames = self._maximize_and_pad(frames)
             result[path] = build_ani(frames) if len(frames) > 1 else build_cur(frames[0])
         return result
 
@@ -1279,9 +1249,9 @@ class MainWindow(FloatingTipOwner, QMainWindow):
         images = self.cropped_frames or [frame.image for frame in self.document.frames]
         result = []
         for index, image in enumerate(images):
-            fitted = fit_cursor(image)
-            # hotspot: scale with the content, then add the square-padding offset
-            content_scale = fitted.width / max(image.width, image.height)
+            # Upscale to 256px (max size) then square-pad — always the largest cursor.
+            fitted = fit_cursor(maximize_content(image))
+            content_scale = fitted.width / max(1, max(image.width, image.height))
             dx = (fitted.width - image.width * content_scale) / 2
             dy = (fitted.height - image.height * content_scale) / 2
             hx = round(self.hotspots[index][0] * content_scale + dx)
