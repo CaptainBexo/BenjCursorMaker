@@ -64,6 +64,17 @@ def crop_image(image: Image.Image, rect: tuple[int, int, int, int]) -> Image.Ima
     return image.crop((x1, y1, x2, y2)).convert("RGBA")
 
 
+def fit_content(image: Image.Image, max_size: int = 256) -> Image.Image:
+    """Downscale to max_size (uniform, Nearest-Neighbor) without padding."""
+    rgba = image.convert("RGBA")
+    side = max(rgba.width, rgba.height)
+    if side <= max_size:
+        return rgba.copy()
+    scale = max_size / side
+    size = (max(1, int(rgba.width * scale)), max(1, int(rgba.height * scale)))
+    return rgba.resize(size, Image.Resampling.NEAREST)
+
+
 def fit_cursor(image: Image.Image, max_size: int = 256) -> Image.Image:
     """Make an image a valid Windows cursor frame.
 
@@ -71,12 +82,7 @@ def fit_cursor(image: Image.Image, max_size: int = 256) -> Image.Image:
     to a SQUARE with transparency: Windows scales any cursor into a square
     box (SM_CXCURSOR x SM_CYCURSOR), which squishes non-square cursors.
     """
-    rgba = image.convert("RGBA")
-    side = max(rgba.width, rgba.height)
-    if side > max_size:
-        scale = max_size / side
-        size = (max(1, int(rgba.width * scale)), max(1, int(rgba.height * scale)))
-        rgba = rgba.resize(size, Image.Resampling.NEAREST)
+    rgba = fit_content(image, max_size)
     if rgba.width != rgba.height:
         side = max(rgba.width, rgba.height)
         canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))

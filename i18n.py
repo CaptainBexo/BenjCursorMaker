@@ -176,8 +176,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     },
     "pack.scale_label": {"vi": "TỈ LỆ", "en": "SCALE"},
     "pack.tip.scale": {
-        "vi": "Thu phóng cursor khi gán (25%–200%, giữ tỉ lệ, pixel sắc nét).",
-        "en": "Scale the cursor when assigning (25%–200%, keeps aspect ratio, crisp pixels).",
+        "vi": "Cỡ cursor trên màn hình Windows luôn là 32×32 — thanh trượt này kéo giãn hình dạng để lấp nhiều ô vuông hơn khi bấm Save (50%–300%, snap 50%).",
+        "en": "Windows always renders cursors at 32x32 on screen — this slider stretches the shape to fill more of that square when you press Save (50%–300%, snaps to 50%).",
     },
     "warn.no_cursors": {
         "vi": "Folder không chứa file .cur hoặc .ani nào.",

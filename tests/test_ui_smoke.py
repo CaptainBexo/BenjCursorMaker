@@ -139,7 +139,11 @@ def test_pack_dialog_assigns_current_multi_frame_cursor_as_ani_without_export():
     pack.assign_current_cursor()
 
     assert pack.assignments["Arrow"].name == "Arrow.ani"
-    assert pack.memory_cursors["Arrow"] == build_ani(window.cursor_frames())
+    # memory_cursors lưu NỘI DUNG (unpadded) — parse ra đúng kích thước frame gốc
+    from exporter import parse_ani
+
+    parsed, _hot, _rates = parse_ani(pack.memory_cursors["Arrow"])
+    assert [f.size for f in parsed] == [(37, 46)] * 3
     assert "Arrow.ani" in pack.list.item(0).text()
     assert "[TỪ EDITOR]" in pack.list.item(0).text()
     pack.close()
@@ -1175,9 +1179,32 @@ def test_crop_canvas_resets_zoom_on_new_image_size():
     assert canvas._zoom == 3.0
 
 
-def test_pack_dialog_scale_option_scales_assigned_cursor(tmp_path):
-    """SCALE 50% -> cursor gán ra nhỏ bằng nửa (canvas vuông giữ nguyên, pixel sắc nét)."""
+def test_pack_dialog_scale_slider_snaps_to_50():
+    """Slider scale 50–300%, snap về bội số của 50."""
+    from PyQt6.QtWidgets import QSlider
+
+    app = QApplication.instance() or QApplication([])
+    d = CursorPackDialog(None, None)
+    slider = d.scale_slider
+    assert isinstance(slider, QSlider)
+    assert slider.minimum() == 50 and slider.maximum() == 300
+    assert slider.value() == 100
+    assert d.scale_value_label.text() == "100%"
+    slider.setValue(120)  # snap về 100
+    assert slider.value() == 100
+    assert d.scale_value_label.text() == "100%"
+    slider.setValue(140)  # snap về 150
+    assert slider.value() == 150
+    assert d.scale_value_label.text() == "150%"
+    slider.setValue(300)
+    assert d._scale_factor() == 3.0
+    d.close()
+
+
+def test_pack_dialog_scale_applies_only_at_save(tmp_path):
+    """Gán cursor luôn lưu bản gốc; SCALE chỉ áp dụng trong _scaled_pack_files (lúc Save)."""
     import io
+    from pathlib import Path
     from PIL import Image as PILImage
     from image_processor import ImageDocument
 
@@ -1192,45 +1219,72 @@ def test_pack_dialog_scale_option_scales_assigned_cursor(tmp_path):
     w.crop_canvas.selection = None
     w.crop_canvas.set_image(w.document.frames[0].image)
     d = CursorPackDialog(w, w)
-    d.scale_combo.setCurrentText("50%")
+    d.scale_slider.setValue(300)
     d.list.setCurrentRow(0)
     d.assign_current_cursor()
-    data = d.memory_cursors["Arrow"]
-    img = PILImage.open(io.BytesIO(data))
-    assert img.size == (50, 50), img.size
-    w.close()
-
-
-def test_pack_dialog_scale_default_100_percent(tmp_path):
-    """Mặc định SCALE 100% -> kích thước giữ nguyên."""
-    import io
-    from PIL import Image as PILImage
-    from image_processor import ImageDocument
-
-    app = QApplication.instance() or QApplication([])
-    src = tmp_path / "src.png"
-    PILImage.new("RGBA", (100, 100), (255, 0, 0, 255)).save(src)
-    w = MainWindow()
-    w.document = ImageDocument.load(src)
-    w.frame_index = 0
-    w.hotspots = [(0, 0)]
-    w.cropped_frames = None
-    w.crop_canvas.selection = None
-    w.crop_canvas.set_image(w.document.frames[0].image)
-    d = CursorPackDialog(w, w)
-    assert d.scale_combo.currentText() == "100%"
-    d.list.setCurrentRow(0)
-    d.assign_current_cursor()
+    # gán xong: memory_cursors vẫn là bản GỐC (nội dung 100x100)
     data = d.memory_cursors["Arrow"]
     img = PILImage.open(io.BytesIO(data))
     assert img.size == (100, 100), img.size
+    # Save: scale 300% -> 100x100 kéo ngang thành 300x100 -> fit 256 -> canvas 256x256
+    packed = d._scaled_pack_files()
+    img2 = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
+    assert img2.size == (256, 256), img2.size
     w.close()
 
 
-def test_assign_file_scale_50_percent(tmp_path):
-    """Gán file .cur với SCALE 50% -> memory_cursors chứa bản đã scale."""
+def test_pack_dialog_scale_portrait_content_fills_more(tmp_path):
+    """Nội dung dọc 116x253: memory_cursors = nội dung gốc; Save 100% -> 253x253, Save 300% -> 256x256 (lấp ô vuông hơn)."""
+    import io
+    from pathlib import Path
+    from PIL import Image as PILImage
+    from image_processor import ImageDocument
+
+    app = QApplication.instance() or QApplication([])
+    src = tmp_path / "src.png"
+    img = PILImage.new("RGBA", (116, 253), (0, 0, 0, 0))
+    for y in range(0, 253, 2):
+        for x in range(0, 116, 2):
+            img.putpixel((x, y), (200, 100, 255, 255))
+    img.save(src)
+    w = MainWindow()
+    w.document = ImageDocument.load(src)
+    w.frame_index = 0
+    w.hotspots = [(0, 0)]
+    w.cropped_frames = None
+    w.crop_canvas.selection = None
+    w.crop_canvas.set_image(w.document.frames[0].image)
+    d = CursorPackDialog(w, w)
+    d.list.setCurrentRow(0)
+    d.assign_current_cursor()
+    # gán xong: lưu NỘI DUNG gốc (chưa pad vuông)
+    data = d.memory_cursors["Arrow"]
+    img100 = PILImage.open(io.BytesIO(data))
+    assert img100.size == (116, 253), img100.size
+    # Save 100%: pad vuông theo chiều cao
+    packed = d._scaled_pack_files()
+    img_sq = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
+    assert img_sq.size == (253, 253), img_sq.size
+    # Save 300%: kéo ngang nội dung -> canvas 256x256, lấp gần hết ô vuông
+    d.scale_slider.setValue(300)
+    packed = d._scaled_pack_files()
+    img300 = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
+    assert img300.size == (256, 256), img300.size
+    # vùng trung tâm có pixel nội dung (không trong suốt) — quét vùng, không chấm đơn
+    any_pixel = any(
+        img300.getpixel((x, y))[3] > 0
+        for x in range(110, 146)
+        for y in range(100, 156)
+    )
+    assert any_pixel
+    w.close()
+
+
+def test_assign_file_stores_raw_and_scales_at_save(tmp_path):
+    """assign_file không scale; _scaled_pack_files áp scale cho cả file gán ngoài."""
     import io
     import unittest.mock as mock
+    from pathlib import Path
     from PyQt6.QtWidgets import QFileDialog
     from PIL import Image as PILImage
     from exporter import CursorFrame, build_cur
@@ -1240,11 +1294,13 @@ def test_assign_file_scale_50_percent(tmp_path):
     f = tmp_path / "x.cur"
     f.write_bytes(cur)
     d = CursorPackDialog(None, None)
-    d.scale_combo.setCurrentText("50%")
     d.list.setCurrentRow(0)
     with mock.patch.object(QFileDialog, "getOpenFileName", return_value=(str(f), "")):
         d.assign_file()
-    data = d.memory_cursors.get("Arrow")
-    assert data is not None
-    img = PILImage.open(io.BytesIO(data))
-    assert img.size == (20, 20), img.size
+    assert d.memory_cursors.get("Arrow") is None  # raw — đọc từ đĩa lúc export
+    d.scale_slider.setValue(300)
+    packed = d._scaled_pack_files()
+    assert any(k.name == "x.cur" for k in packed)
+    img = PILImage.open(io.BytesIO(packed[next(k for k in packed if k.name == "x.cur")]))
+    assert img.size == (120, 120), img.size  # 40x40 -> kéo ngang 120x40 -> canvas vuông 120x120
+    d.close()
