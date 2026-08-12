@@ -844,14 +844,15 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
         self.list.viewport().unsetCursor()
 
     def _store_memory_cursor(self, role: str) -> None:
-        # Store the CONTENT (unpadded), upscaled to 256px so the cursor is always
-        # as large as Windows allows. Square-padding happens at Save time.
+        # Store the CONTENT at its original size (fit_content, unpadded) so the
+        # in-dialog preview shows the sprite at its real size. Upscale to 256px
+        # happens only at Save time in _scaled_pack_files.
         mw = self.main_window
         images = mw.cropped_frames or [f.image for f in mw.document.frames]
         frames: list[CursorFrame] = []
         for index, image in enumerate(images):
-            fitted = maximize_content(image)
-            # per-axis scale: maximize_content keeps the aspect ratio (uniform), so a
+            fitted = fit_content(image)
+            # per-axis scale: fit_content keeps the aspect ratio (uniform), so a
             # single fitted.width/max(w,h) would mis-map the hotspot on portrait art.
             sx = fitted.width / max(1, image.width)
             sy = fitted.height / max(1, image.height)

@@ -139,14 +139,12 @@ def test_pack_dialog_assigns_current_multi_frame_cursor_as_ani_without_export():
     pack.assign_current_cursor()
 
     assert pack.assignments["Arrow"].name == "Arrow.ani"
-    # memory_cursors lưu NỘI DUNG đã phóng lên 256px (max size), chưa pad vuông
+    # memory_cursors lưu NỘI DUNG gốc (kích thước thật) để preview hiển thị đúng
     from exporter import parse_ani
 
     parsed, hot, _rates = parse_ani(pack.memory_cursors["Arrow"])
-    # 37x46 -> cạnh dài 46 phóng lên 256 -> 206x256
-    assert [f.size for f in parsed] == [(206, 256)] * 3
-    # hotspot (5,2) scale theo tỉ lệ trục riêng: (round(5*206/37), round(2*256/46)) = (28, 11)
-    assert hot == (28, 11), hot
+    assert [f.size for f in parsed] == [(37, 46)] * 3
+    assert hot == (5, 2), hot
     assert "Arrow.ani" in pack.list.item(0).text()
     assert "[TỪ EDITOR]" in pack.list.item(0).text()
     pack.close()
@@ -176,7 +174,14 @@ def test_pack_dialog_assigns_current_single_frame_cursor_as_cur():
     pack.assign_current_cursor()
 
     assert pack.assignments["Wait"].name == "Wait.cur"
-    assert pack.memory_cursors["Wait"] == build_cur(window.cursor_frames()[0])
+    # preview lưu bản GỐC (16x16), không phóng to
+    from ui import _cur_hotspot
+    import io
+    from PIL import Image as PILImage
+
+    img = PILImage.open(io.BytesIO(pack.memory_cursors["Wait"]))
+    assert img.size == (16, 16), img.size
+    assert _cur_hotspot(pack.memory_cursors["Wait"]) == (2, 2)
     pack.close()
     window.close()
 
