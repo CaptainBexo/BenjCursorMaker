@@ -951,6 +951,8 @@ class MainWindow(FloatingTipOwner, QMainWindow):
         self.lang_button.setText(tr("btn.lang"))
         self.lang_button.setToolTip(tr("tip.lang"))
         self.statusBar().showMessage(tr("status.ready"))
+        self.crop_canvas.update()  # repaint canvas text in the new language
+        self.hotspot_canvas.update()
         self._tip.hide_tip()
 
     def _build_ui(self) -> None:

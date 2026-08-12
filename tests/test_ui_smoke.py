@@ -789,6 +789,22 @@ def test_pack_dialog_button_order_apply_save_cancel():
     window.close()
 
 
+def test_language_toggle_repaints_canvases():
+    """Đổi ngôn ngữ phải yêu cầu cả 2 canvas vẽ lại — nếu không chữ cũ trên canvas bị pha trộn ngôn ngữ."""
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    calls = []
+
+    def spy(*args, **kwargs):
+        calls.append(1)
+
+    window.crop_canvas.update = spy
+    window.hotspot_canvas.update = spy
+    window.toggle_lang()
+    assert len(calls) >= 2, calls
+    window.close()
+
+
 def test_pack_dialog_buttons_use_floating_tip_like_editor():
     from PyQt6.QtCore import QEvent, QPointF, Qt
     from PyQt6.QtGui import QHoverEvent

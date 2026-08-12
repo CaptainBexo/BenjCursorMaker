@@ -2,6 +2,8 @@
 
 A Windows desktop app to crop images/GIFs and create `.cur` / `.ani` mouse cursors plus an installable cursor pack (with `install.bat`). PyQt6 retro 16-bit UI — all zoom/scale operations use **Nearest-Neighbor** to keep pixel art crisp. The interface supports **Vietnamese / English** (EN/VN button, top-right corner).
 
+![Benj Cursor Maker main window](docs/screenshot.png)
+
 ## Features
 
 - Import PNG, GIF, JPG/JPEG, BMP — animated GIFs with Play/Pause and a frame slider (per-frame durations preserved).
