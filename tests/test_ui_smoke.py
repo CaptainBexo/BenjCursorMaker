@@ -4,7 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication
 
-from ui import MainWindow, RETRO_STYLE, CropCanvas, paint_canvas_background
+from ui import MainWindow, RETRO_STYLE, CropCanvas, CursorPackDialog, paint_canvas_background
 
 import pytest
 
@@ -1173,3 +1173,78 @@ def test_crop_canvas_resets_zoom_on_new_image_size():
     canvas.set_zoom(3.0)
     canvas.set_image(img2)  # cùng size -> giữ zoom
     assert canvas._zoom == 3.0
+
+
+def test_pack_dialog_scale_option_scales_assigned_cursor(tmp_path):
+    """SCALE 50% -> cursor gán ra nhỏ bằng nửa (canvas vuông giữ nguyên, pixel sắc nét)."""
+    import io
+    from PIL import Image as PILImage
+    from image_processor import ImageDocument
+
+    app = QApplication.instance() or QApplication([])
+    src = tmp_path / "src.png"
+    PILImage.new("RGBA", (100, 100), (255, 0, 0, 255)).save(src)
+    w = MainWindow()
+    w.document = ImageDocument.load(src)
+    w.frame_index = 0
+    w.hotspots = [(0, 0)]
+    w.cropped_frames = None
+    w.crop_canvas.selection = None
+    w.crop_canvas.set_image(w.document.frames[0].image)
+    d = CursorPackDialog(w, w)
+    d.scale_combo.setCurrentText("50%")
+    d.list.setCurrentRow(0)
+    d.assign_current_cursor()
+    data = d.memory_cursors["Arrow"]
+    img = PILImage.open(io.BytesIO(data))
+    assert img.size == (50, 50), img.size
+    w.close()
+
+
+def test_pack_dialog_scale_default_100_percent(tmp_path):
+    """Mặc định SCALE 100% -> kích thước giữ nguyên."""
+    import io
+    from PIL import Image as PILImage
+    from image_processor import ImageDocument
+
+    app = QApplication.instance() or QApplication([])
+    src = tmp_path / "src.png"
+    PILImage.new("RGBA", (100, 100), (255, 0, 0, 255)).save(src)
+    w = MainWindow()
+    w.document = ImageDocument.load(src)
+    w.frame_index = 0
+    w.hotspots = [(0, 0)]
+    w.cropped_frames = None
+    w.crop_canvas.selection = None
+    w.crop_canvas.set_image(w.document.frames[0].image)
+    d = CursorPackDialog(w, w)
+    assert d.scale_combo.currentText() == "100%"
+    d.list.setCurrentRow(0)
+    d.assign_current_cursor()
+    data = d.memory_cursors["Arrow"]
+    img = PILImage.open(io.BytesIO(data))
+    assert img.size == (100, 100), img.size
+    w.close()
+
+
+def test_assign_file_scale_50_percent(tmp_path):
+    """Gán file .cur với SCALE 50% -> memory_cursors chứa bản đã scale."""
+    import io
+    import unittest.mock as mock
+    from PyQt6.QtWidgets import QFileDialog
+    from PIL import Image as PILImage
+    from exporter import CursorFrame, build_cur
+
+    app = QApplication.instance() or QApplication([])
+    cur = build_cur(CursorFrame(PILImage.new("RGBA", (40, 40), (255, 0, 0, 255)), (0, 0), 100))
+    f = tmp_path / "x.cur"
+    f.write_bytes(cur)
+    d = CursorPackDialog(None, None)
+    d.scale_combo.setCurrentText("50%")
+    d.list.setCurrentRow(0)
+    with mock.patch.object(QFileDialog, "getOpenFileName", return_value=(str(f), "")):
+        d.assign_file()
+    data = d.memory_cursors.get("Arrow")
+    assert data is not None
+    img = PILImage.open(io.BytesIO(data))
+    assert img.size == (20, 20), img.size

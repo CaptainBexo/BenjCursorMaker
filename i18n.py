@@ -174,6 +174,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "vi": "Chọn folder chứa file .cur/.ani",
         "en": "Choose a folder containing .cur/.ani files",
     },
+    "pack.scale_label": {"vi": "TỈ LỆ", "en": "SCALE"},
+    "pack.tip.scale": {
+        "vi": "Thu phóng cursor khi gán (25%–200%, giữ tỉ lệ, pixel sắc nét).",
+        "en": "Scale the cursor when assigning (25%–200%, keeps aspect ratio, crisp pixels).",
+    },
     "warn.no_cursors": {
         "vi": "Folder không chứa file .cur hoặc .ani nào.",
         "en": "The folder contains no .cur or .ani files.",
