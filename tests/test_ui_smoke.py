@@ -1080,3 +1080,57 @@ def test_installer_button_warns_on_empty_folder(tmp_path):
     assert not (tmp_path / "install.bat").exists()
     assert errors and "cur" in errors[0][1]
     window.close()
+
+
+def test_export_status_shows_real_file_dimensions(tmp_path):
+    """Status bar báo kích thước THẬT của file .cur xuất ra (đọc lại file) — so với crop."""
+    import unittest.mock as mock
+    from PyQt6.QtWidgets import QFileDialog
+    from PIL import Image as PILImage
+    from image_processor import ImageDocument
+
+    app = QApplication.instance() or QApplication([])
+    src = tmp_path / "src.png"
+    PILImage.new("RGBA", (100, 100), (255, 0, 0, 255)).save(src)
+    window = MainWindow()
+    window.document = ImageDocument.load(src)
+    window.frame_index = 0
+    window.hotspots = [(0, 0)]
+    window.cropped_frames = None
+    window.crop_canvas.selection = None
+    window.crop_canvas.set_image(window.document.frames[0].image)
+    out = tmp_path / "out.cur"
+    with mock.patch.object(QFileDialog, "getSaveFileName", return_value=(str(out), "")):
+        window.export_cur_file()
+    assert out.exists()
+    msg = window.statusBar().currentMessage()
+    assert "100" in msg and "100" in msg, msg  # 100×100
+    window.close()
+
+
+def test_export_ani_status_shows_real_frame_dimensions(tmp_path):
+    """Status bar báo kích thước frame THẬT của .ani xuất ra (qua parse_ani)."""
+    import unittest.mock as mock
+    from PyQt6.QtWidgets import QFileDialog
+    from PIL import Image as PILImage
+    from image_processor import ImageDocument
+
+    app = QApplication.instance() or QApplication([])
+    src = tmp_path / "src.gif"
+    f0 = PILImage.new("RGBA", (80, 40), (255, 0, 0, 255))
+    f1 = PILImage.new("RGBA", (80, 40), (0, 255, 0, 255))
+    f0.save(src, save_all=True, append_images=[f1], duration=[100, 200], loop=0)
+    window = MainWindow()
+    window.document = ImageDocument.load(src)
+    window.frame_index = 0
+    window.hotspots = [(0, 0), (0, 0)]
+    window.cropped_frames = None
+    window.crop_canvas.selection = None
+    window.crop_canvas.set_image(window.document.frames[0].image)
+    out = tmp_path / "out.ani"
+    with mock.patch.object(QFileDialog, "getSaveFileName", return_value=(str(out), "")):
+        window.export_ani_file()
+    assert out.exists()
+    msg = window.statusBar().currentMessage()
+    assert "80" in msg and "40" in msg, msg  # 80×40
+    window.close()

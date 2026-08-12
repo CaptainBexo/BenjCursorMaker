@@ -182,6 +182,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "vi": "Đã tạo install.bat cho {count} con trỏ trong {folder}",
         "en": "Created install.bat for {count} cursors in {folder}",
     },
+    "status.exported_size": {
+        "vi": "Đã xuất {w}×{h}: {path}",
+        "en": "Exported {w}x{h}: {path}",
+    },
 }
 
 

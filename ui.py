@@ -1169,7 +1169,12 @@ class MainWindow(FloatingTipOwner, QMainWindow):
             filename, _ = QFileDialog.getSaveFileName(self, "Export CUR", "cursor.cur", "Windows Cursor (*.cur)")
             if filename:
                 export_cur(filename, frame)
-                self.statusBar().showMessage(tr("status.exported", path=filename))
+                # đọc lại file vừa ghi để báo kích thước thật (so sánh với crop)
+                with Image.open(filename) as written:
+                    w, h = written.size
+                self.statusBar().showMessage(
+                    tr("status.exported_size", path=filename, w=w, h=h)
+                )
         except Exception as error:
             self._error(tr("error.export_cur"), error)
 
@@ -1179,7 +1184,12 @@ class MainWindow(FloatingTipOwner, QMainWindow):
             filename, _ = QFileDialog.getSaveFileName(self, "Export ANI", "animated.ani", "Animated Cursor (*.ani)")
             if filename:
                 export_ani(filename, frames)
-                self.statusBar().showMessage(tr("status.exported", path=filename))
+                # đọc lại file vừa ghi: ANI lấy kích thước frame từ parse_ani
+                parsed_frames, _hot, _rates = parse_ani(Path(filename).read_bytes())
+                w, h = parsed_frames[0].size
+                self.statusBar().showMessage(
+                    tr("status.exported_size", path=filename, w=w, h=h)
+                )
         except Exception as error:
             self._error(tr("error.export_ani"), error)
 
