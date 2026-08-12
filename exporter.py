@@ -275,3 +275,74 @@ def export_cursorpack_folder(
     (target / "README.txt").write_bytes(readme.replace("\n", "\r\n").encode("utf-8"))
     return target
 
+
+# Windows cursor scheme roles, in the order they appear in Mouse Properties.
+ROLE_ORDER = [
+    "Arrow", "Help", "AppStarting", "Wait", "Crosshair", "IBeam", "NWPen",
+    "No", "SizeNS", "SizeWE", "SizeNWSE", "SizeNESW", "SizeAll", "UpArrow", "Hand",
+]
+
+# Common cursor-pack filenames (normalized stem) -> Windows role.
+EXACT_ROLE_NAMES = {
+    "normal": "Arrow", "arrow": "Arrow", "select": "Arrow",
+    "help": "Help",
+    "appstarting": "AppStarting", "work": "AppStarting", "working": "AppStarting",
+    "wait": "Wait", "busy": "Wait",
+    "cross": "Crosshair", "crosshair": "Crosshair", "precision": "Crosshair",
+    "text": "IBeam", "ibeam": "IBeam", "beam": "IBeam",
+    "pen": "NWPen", "nwpen": "NWPen", "handwriting": "NWPen",
+    "no": "No", "unavailable": "No", "notallowed": "No",
+    "sizens": "SizeNS", "sizewe": "SizeWE", "sizenwse": "SizeNWSE", "sizenesw": "SizeNESW",
+    "sizeall": "SizeAll", "move": "SizeAll", "up": "UpArrow", "uparrow": "UpArrow",
+    "hand": "Hand", "link": "Hand",
+}
+
+
+def map_folder_to_roles(folder: str | Path) -> dict[str, str]:
+    """Map the .cur/.ani files in a folder to Windows roles by filename.
+
+    Well-known Windows cursor filenames (Normal.cur, Help.ani, Text.cur, ...)
+    map directly; unrecognized names get the first unused role in ROLE_ORDER.
+    """
+    folder = Path(folder)
+    files = sorted(folder.glob("*.cur")) + sorted(folder.glob("*.ani"))
+    if not files:
+        raise ValueError("The folder contains no .cur or .ani files.")
+    roles: dict[str, str] = {}
+    used: set[str] = set()
+    for f in files:
+        stem = f.stem.lower().replace(" ", "").replace("_", "").replace("-", "")
+        role = EXACT_ROLE_NAMES.get(stem)
+        if role and role not in used:
+            roles[role] = f.name
+            used.add(role)
+    for f in files:
+        if f.name in roles.values():
+            continue
+        for role in ROLE_ORDER:
+            if role not in used:
+                roles[role] = f.name
+                used.add(role)
+                break
+    return roles
+
+
+def export_installer_into_folder(folder: str | Path) -> dict[str, str]:
+    """Generate install.bat + install.inf + README.txt inside an existing folder
+    that already contains .cur/.ani files — no need to re-export the cursors.
+    Returns the role -> filename mapping used.
+    """
+    folder = Path(folder)
+    roles = map_folder_to_roles(folder)
+    scheme = safe_pack_name(folder.name)
+    # Plain UTF-8, NO BOM (cmd/setupapi reject BOM'd batch/INF files).
+    (folder / "install.inf").write_bytes(build_install_inf(scheme, roles).encode("utf-8"))
+    (folder / "install.bat").write_bytes(build_install_bat(scheme, roles).encode("utf-8"))
+    readme = (
+        "Benj Cursor Maker\n\n"
+        "Double-click install.bat to install and activate this cursor scheme.\n"
+        "Windows will ask for Administrator permission.\n"
+    )
+    (folder / "README.txt").write_bytes(readme.replace("\n", "\r\n").encode("utf-8"))
+    return roles
+

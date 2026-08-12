@@ -12,6 +12,7 @@ A Windows desktop app to crop images/GIFs and create `.cur` / `.ani` mouse curso
 - Export `.cur` (static) and `.ani` (standard RIFF/ACON, per-frame timing).
 - **Cursorpack Builder**: assign `.cur`/`.ani` files — or the current editor crop + hotspot directly — to 15 Windows states (Normal, Help, Text, Busy…). **Apply** saves temporarily so you can keep assigning; **Save** exports a pack folder with `install.inf` + `install.bat` that installs and activates the scheme.
 - **Hover preview** in the Builder: moving the mouse over a state shows the assigned cursor (animation included); unassigned states show nothing.
+- **INSTALL.BAT for an existing folder**: point the button at any folder that already contains `.cur`/`.ani` files and the app generates `install.bat` + `install.inf` + `README.txt` right there — well-known filenames (`Normal.cur`, `Text.cur`, `Hand.ani`, …) map to the correct Windows states automatically, unknown names fill the remaining states in order. No need to re-create your cursors if an install file fails.
 - No file export needed before assigning — the current crop + hotspot go straight into a Windows state.
 
 ## Requirements
@@ -43,6 +44,7 @@ python main.py
 4. In the HOTSPOT box, click the pixel that should be the cursor's touch point (applied to all frames).
 5. **EXPORT .CUR** for the current frame, or **EXPORT .ANI** for the whole animation.
 6. **CURSORPACK**: select a state → assign the current cursor directly (**ASSIGN CURRENT CURSOR**) or from a file (**ASSIGN .CUR / .ANI**). **Apply** saves and closes so you can edit the image and keep assigning; **Save** exports the pack.
+7. **INSTALL.BAT** (for an existing folder): click the button, pick the folder with your `.cur`/`.ani` files — the app writes `install.bat`/`install.inf`/`README.txt` into it on the spot. Double-click `install.bat` there to install.
 
 ## Installing a cursor pack on Windows
 

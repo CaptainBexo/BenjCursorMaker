@@ -39,6 +39,7 @@ from exporter import (
     export_ani,
     export_cur,
     export_cursorpack_folder,
+    export_installer_into_folder,
     parse_ani,
     safe_pack_name,
 )
@@ -966,6 +967,7 @@ class MainWindow(FloatingTipOwner, QMainWindow):
             ("btn.export_cur", self.export_cur_file, "tip.export_cur"),
             ("btn.export_ani", self.export_ani_file, "tip.export_ani"),
             ("btn.cursorpack", self.make_pack, "tip.cursorpack"),
+            ("btn.installer", self.make_installer_for_folder, "tip.installer"),
         )
         for text_key, slot, tip_key in actions:
             button = QPushButton(tr(text_key))
@@ -1203,3 +1205,17 @@ class MainWindow(FloatingTipOwner, QMainWindow):
             self.statusBar().showMessage(tr("status.packed", path=folder))
         except Exception as error:
             self._error(tr("error.pack"), error)
+
+    def make_installer_for_folder(self) -> None:
+        """Generate install.bat/inf for an existing folder with .cur/.ani files."""
+        folder = QFileDialog.getExistingDirectory(self, tr("pack.choose_folder"))
+        if not folder:
+            return
+        try:
+            roles = export_installer_into_folder(folder)
+        except ValueError as error:
+            self._error(tr("warn.no_cursors"), error)
+            return
+        self.statusBar().showMessage(
+            tr("status.installer_created").format(count=len(roles), folder=folder)
+        )

@@ -165,6 +165,23 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Select a state in the list first.",
     },
     "pack.choose_cursor": {"vi": "Chọn cursor", "en": "Choose cursor"},
+    "btn.installer": {"vi": "INSTALL.BAT", "en": "INSTALL.BAT"},
+    "tip.installer": {
+        "vi": "Tạo install.bat + install.inf cho folder đã có sẵn file .cur/.ani — không cần tạo lại cursor.",
+        "en": "Generate install.bat + install.inf for a folder that already contains .cur/.ani files — no need to recreate cursors.",
+    },
+    "pack.choose_folder": {
+        "vi": "Chọn folder chứa file .cur/.ani",
+        "en": "Choose a folder containing .cur/.ani files",
+    },
+    "warn.no_cursors": {
+        "vi": "Folder không chứa file .cur hoặc .ani nào.",
+        "en": "The folder contains no .cur or .ani files.",
+    },
+    "status.installer_created": {
+        "vi": "Đã tạo install.bat cho {count} con trỏ trong {folder}",
+        "en": "Created install.bat for {count} cursors in {folder}",
+    },
 }
 
 

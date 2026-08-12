@@ -50,7 +50,7 @@ def test_every_main_action_button_has_a_short_clear_tooltip():
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
     # Vietnamese by default
-    expected = {"MỞ ẢNH", "CẮT VÙNG", "XUẤT .CUR", "XUẤT .ANI", "GÓI CURSOR", "PHÁT", "VN"}
+    expected = {"MỞ ẢNH", "CẮT VÙNG", "XUẤT .CUR", "XUẤT .ANI", "GÓI CURSOR", "INSTALL.BAT", "PHÁT", "VN"}
     buttons = {button.text(): button.toolTip() for button in window.findChildren(QPushButton)}
     assert expected <= buttons.keys(), buttons.keys()
     for name in expected:
@@ -58,7 +58,7 @@ def test_every_main_action_button_has_a_short_clear_tooltip():
         assert len(buttons[name]) <= 180, name
     # English
     window.toggle_lang()
-    expected_en = {"IMPORT", "APPLY CROP", "EXPORT .CUR", "EXPORT .ANI", "CURSORPACK", "PLAY", "EN"}
+    expected_en = {"IMPORT", "APPLY CROP", "EXPORT .CUR", "EXPORT .ANI", "CURSORPACK", "INSTALL.BAT", "PLAY", "EN"}
     buttons_en = {button.text(): button.toolTip() for button in window.findChildren(QPushButton)}
     assert expected_en <= buttons_en.keys(), buttons_en.keys()
     for name in expected_en:
@@ -1047,4 +1047,36 @@ def test_pan_syncs_between_canvases():
     assert crop._pan == QPoint(30, 45), crop._pan
     assert crop._target.x() == crop_before.x() + 10
     assert crop._target.y() == crop_before.y() + 15
+    window.close()
+
+
+def test_installer_button_generates_files_for_folder(tmp_path):
+    """Nút INSTALL.BAT: chọn folder có sẵn .cur/.ani -> sinh install.bat/inf ngay trong folder đó."""
+    import unittest.mock as mock
+    from PyQt6.QtWidgets import QFileDialog
+
+    app = QApplication.instance() or QApplication([])
+    (tmp_path / "Normal.cur").write_bytes(b"x")
+    window = MainWindow()
+    with mock.patch.object(QFileDialog, "getExistingDirectory", return_value=str(tmp_path)):
+        window.make_installer_for_folder()
+    assert (tmp_path / "install.bat").exists()
+    assert (tmp_path / "install.inf").exists()
+    assert "install.bat" in window.statusBar().currentMessage()
+    window.close()
+
+
+def test_installer_button_warns_on_empty_folder(tmp_path):
+    """Folder không có .cur/.ani -> cảnh báo, không tạo file."""
+    import unittest.mock as mock
+    from PyQt6.QtWidgets import QFileDialog
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    errors = []
+    window._error = lambda title, error: errors.append((title, str(error)))
+    with mock.patch.object(QFileDialog, "getExistingDirectory", return_value=str(tmp_path)):
+        window.make_installer_for_folder()
+    assert not (tmp_path / "install.bat").exists()
+    assert errors and "cur" in errors[0][1]
     window.close()

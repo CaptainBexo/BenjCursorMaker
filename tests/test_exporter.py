@@ -10,6 +10,8 @@ from exporter import (
     build_install_bat,
     build_install_inf,
     export_cursorpack_folder,
+    export_installer_into_folder,
+    map_folder_to_roles,
 )
 
 
@@ -206,3 +208,43 @@ def test_install_bat_activates_only_assigned_roles_and_uses_safe_folder():
     assert 'reg add "HKCU\\Control Panel\\Cursors" /v "IBeam"' in bat
     assert '/v "Wait"' not in bat
     assert 'reg add "HKCU\\Control Panel\\Cursors" /ve' in bat
+
+
+def test_map_folder_to_roles_known_filenames(tmp_path):
+    """Folder chứa file tên chuẩn Windows -> map đúng role."""
+    (tmp_path / "Normal.cur").write_bytes(b"x")
+    (tmp_path / "Help.ani").write_bytes(b"x")
+    (tmp_path / "Text.cur").write_bytes(b"x")
+    roles = map_folder_to_roles(tmp_path)
+    assert roles == {"Arrow": "Normal.cur", "Help": "Help.ani", "IBeam": "Text.cur"}
+
+
+def test_map_folder_to_roles_fallback_unknown_names(tmp_path):
+    """File tên lạ -> gán theo thứ tự role chưa dùng (Arrow, Help, ...)."""
+    (tmp_path / "A.cur").write_bytes(b"x")
+    (tmp_path / "B.cur").write_bytes(b"x")
+    roles = map_folder_to_roles(tmp_path)
+    assert roles == {"Arrow": "A.cur", "Help": "B.cur"}
+
+
+def test_map_folder_to_roles_no_cursors_raises(tmp_path):
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        map_folder_to_roles(tmp_path)
+
+
+def test_export_installer_into_folder_creates_clean_files(tmp_path):
+    """Sinh install.bat/inf/README vào folder có sẵn: không BOM, CRLF sạch, map đúng."""
+    (tmp_path / "Normal.cur").write_bytes(b"x")
+    (tmp_path / "Hand.ani").write_bytes(b"x")
+    roles = export_installer_into_folder(tmp_path)
+    assert roles == {"Arrow": "Normal.cur", "Hand": "Hand.ani"}
+    bat = (tmp_path / "install.bat").read_bytes()
+    inf = (tmp_path / "install.inf").read_bytes()
+    assert bat[:3] != b"\xef\xbb\xbf"
+    assert inf[:3] != b"\xef\xbb\xbf"
+    assert b"\r\r\n" not in bat and b"\r\r\n" not in inf
+    assert b'reg add "HKCU\Control Panel\Cursors" /v "Hand"' in bat
+    assert b"Hand.ani" in inf
+    readme = (tmp_path / "README.txt").read_bytes()
+    assert b"Double-click install.bat" in readme
