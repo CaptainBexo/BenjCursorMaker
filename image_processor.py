@@ -1,0 +1,74 @@
+"""Image loading and pixel-perfect processing for Benj Cursor Maker."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from PIL import Image, ImageSequence
+
+
+@dataclass(slots=True)
+class ImageFrame:
+    image: Image.Image
+    duration_ms: int = 100
+
+
+@dataclass(slots=True)
+class ImageDocument:
+    path: Path
+    frames: list[ImageFrame]
+
+    @classmethod
+    def load(cls, path: str | Path) -> "ImageDocument":
+        source = Path(path)
+        frames: list[ImageFrame] = []
+        with Image.open(source) as opened:
+            for raw in ImageSequence.Iterator(opened):
+                duration = max(10, int(raw.info.get("duration", opened.info.get("duration", 100)) or 100))
+                frames.append(ImageFrame(raw.convert("RGBA").copy(), duration))
+        if not frames:
+            raise ValueError("Tệp ảnh không chứa frame hợp lệ.")
+        return cls(source, frames)
+
+
+def normalize_rect(rect: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    x1, y1, x2, y2 = rect
+    return min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)
+
+
+def snap_rect(
+    rect: tuple[int, int, int, int], grid: int, bounds: tuple[int, int]
+) -> tuple[int, int, int, int]:
+    x1, y1, x2, y2 = normalize_rect(rect)
+    if grid <= 1:
+        return max(0, x1), max(0, y1), min(bounds[0], x2), min(bounds[1], y2)
+
+    def snap(value: int) -> int:
+        return int(value / grid + 0.5) * grid
+
+    sx1, sy1 = snap(x1), snap(y1)
+    sx2, sy2 = snap(x2), snap(y2)
+    if sx2 == sx1:
+        sx2 += grid
+    if sy2 == sy1:
+        sy2 += grid
+    return max(0, sx1), max(0, sy1), min(bounds[0], sx2), min(bounds[1], sy2)
+
+
+def crop_image(image: Image.Image, rect: tuple[int, int, int, int]) -> Image.Image:
+    x1, y1, x2, y2 = normalize_rect(rect)
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(image.width, x2), min(image.height, y2)
+    if x2 <= x1 or y2 <= y1:
+        raise ValueError("Vùng cắt phải có chiều rộng và chiều cao lớn hơn 0.")
+    return image.crop((x1, y1, x2, y2)).convert("RGBA")
+
+
+def fit_cursor(image: Image.Image, max_size: int = 256) -> Image.Image:
+    """Limit Windows cursor dimensions without ever smoothing pixels."""
+    rgba = image.convert("RGBA")
+    if rgba.width <= max_size and rgba.height <= max_size:
+        return rgba.copy()
+    scale = min(max_size / rgba.width, max_size / rgba.height)
+    size = (max(1, int(rgba.width * scale)), max(1, int(rgba.height * scale)))
+    return rgba.resize(size, Image.Resampling.NEAREST)

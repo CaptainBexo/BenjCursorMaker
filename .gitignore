@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Test / tooling
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Hermes internal (session exports, desktop attachments)
+.hermes/
+
+# Build artifacts
+dist/
+build/
+*.spec
+
+# Windows / OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs & scratch
+*.log
+*_dbg*
