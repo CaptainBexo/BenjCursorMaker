@@ -212,7 +212,7 @@ _SPI_SETCURSORS_B64 = (
 _SPI_SETCURSORS = f'powershell -NoProfile -EncodedCommand {_SPI_SETCURSORS_B64} >nul 2>&1'
 
 
-def build_install_bat(scheme_name: str, assignments: dict[str, str], base_size: int = 32) -> str:
+def build_install_bat(scheme_name: str, assignments: dict[str, str]) -> str:
     """Create a self-elevating installer that installs and activates the scheme.
 
     Pure cmd copy + reg add — no setupapi/INF dependency. Every step checks
@@ -283,14 +283,6 @@ def build_install_bat(scheme_name: str, assignments: dict[str, str], base_size: 
         'reg add "HKCU\\Control Panel\\Cursors" /v "Scheme Source" /t REG_DWORD /d 1 /f >nul',
         f'reg add "HKCU\\Control Panel\\Cursors\\Schemes" /v "{display}" /t REG_SZ /d "{scheme_value}" /f >nul',
         "if errorlevel 1 goto :error",
-    ]
-    if base_size not in (0, 32):
-        lines += [
-            'set "ERR_STEP=set pointer size"',
-            f'reg add "HKCU\\Control Panel\\Cursors" /v "CursorBaseSize" /t REG_DWORD /d {int(base_size)} /f >nul',
-            "if errorlevel 1 goto :error",
-        ]
-    lines += [
         "RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters",
         _SPI_SETCURSORS,
         f'powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(\'Installed and activated: {display}.\', \'Benj Cursor Maker\')" >nul 2>&1',
@@ -308,7 +300,6 @@ def export_cursorpack_folder(
     scheme_name: str,
     assignments: dict[str, Path],
     files: dict[Path, bytes] | None = None,
-    base_size: int = 32,
 ) -> Path:
     """Write an installable cursor pack into a folder named after the scheme.
 
@@ -321,7 +312,7 @@ def export_cursorpack_folder(
     # Plain UTF-8, NO BOM: cmd.exe chokes on a BOM before @echo off, and
     # setupapi may reject an install.inf that starts with a BOM.
     (target / "install.inf").write_bytes(build_install_inf(scheme_name, archived).encode("utf-8"))
-    (target / "install.bat").write_bytes(build_install_bat(scheme_name, archived, base_size).encode("utf-8"))
+    (target / "install.bat").write_bytes(build_install_bat(scheme_name, archived).encode("utf-8"))
     for source in dict.fromkeys(assignments.values()):
         payload = files[source] if files and source in files else source.read_bytes()
         (target / source.name).write_bytes(payload)
@@ -385,7 +376,7 @@ def map_folder_to_roles(folder: str | Path) -> dict[str, str]:
     return roles
 
 
-def export_installer_into_folder(folder: str | Path, base_size: int = 32) -> dict[str, str]:
+def export_installer_into_folder(folder: str | Path) -> dict[str, str]:
     """Generate install.bat + install.inf + README.txt inside an existing folder
     that already contains .cur/.ani files — no need to re-export the cursors.
     Returns the role -> filename mapping used.
@@ -395,7 +386,7 @@ def export_installer_into_folder(folder: str | Path, base_size: int = 32) -> dic
     scheme = safe_pack_name(folder.name)
     # Plain UTF-8, NO BOM (cmd/setupapi reject BOM'd batch/INF files).
     (folder / "install.inf").write_bytes(build_install_inf(scheme, roles).encode("utf-8"))
-    (folder / "install.bat").write_bytes(build_install_bat(scheme, roles, base_size).encode("utf-8"))
+    (folder / "install.bat").write_bytes(build_install_bat(scheme, roles).encode("utf-8"))
     readme = (
         "Benj Cursor Maker\n\n"
         "Double-click install.bat to install and activate this cursor scheme.\n"

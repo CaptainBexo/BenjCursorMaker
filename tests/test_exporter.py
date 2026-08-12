@@ -135,12 +135,10 @@ def test_cursorpack_folder_named_after_scheme_contains_inf_bat_and_cursor(tmp_pa
     assert "Installed and activated: Neon" in installer
 
 
-def test_install_bat_sets_cursor_base_size_when_requested():
-    """base_size != 32 must write CursorBaseSize; 32 must leave it untouched."""
-    bat = build_install_bat("Neon", {"Arrow": "Normal.cur"}, base_size=64)
-    assert 'reg add "HKCU\\Control Panel\\Cursors" /v "CursorBaseSize" /t REG_DWORD /d 64 /f >nul' in bat
-    bat32 = build_install_bat("Neon", {"Arrow": "Normal.cur"})
-    assert "CursorBaseSize" not in bat32
+def test_install_bat_never_writes_cursor_base_size():
+    """install.bat must NOT touch CursorBaseSize — scale is a file-pixel operation."""
+    bat = build_install_bat("Neon", {"Arrow": "Normal.cur"})
+    assert "CursorBaseSize" not in bat
 
 
 def test_exported_pack_files_have_no_bom_and_clean_endings(tmp_path):

@@ -866,26 +866,21 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
     def _scale_factor(self) -> float:
         return self.scale_slider.value() / 100
 
-    def _base_size(self) -> int:
-        """Map the SCALE slider to Windows CursorBaseSize (the real on-screen
-        pointer size). 100% -> 32 (default), 150% -> 48, 200% -> 64, 300% -> 96."""
-        return min(96, max(32, round(32 * self._scale_factor() / 16) * 16))
-
     def _store_memory_cursor(self, role: str) -> None:
-        # Square-pad + uniform scale, hotspot mapped exactly like MainWindow.cursor_frames
-        # (content_scale must be per-axis: fit_cursor keeps the aspect ratio, so using
-        # fitted.width/max(w,h) shrank the hotspot on portrait images — the "hotspot
-        # drifts up-left" bug).
+        # Store the CONTENT (fitted, unpadded). SCALE applies at Save time in
+        # _scaled_pack_files by resizing the pixels, so a 300% pack actually
+        # contains a 3x-larger sprite in the .ani/.cur file.
         mw = self.main_window
         images = mw.cropped_frames or [f.image for f in mw.document.frames]
         frames: list[CursorFrame] = []
         for index, image in enumerate(images):
-            fitted = fit_cursor(image)
-            content_scale = fitted.width / max(1, max(image.width, image.height))
-            dx = (fitted.width - image.width * content_scale) / 2
-            dy = (fitted.height - image.height * content_scale) / 2
-            hx = round(mw.hotspots[index][0] * content_scale + dx)
-            hy = round(mw.hotspots[index][1] * content_scale + dy)
+            fitted = fit_content(image)
+            # per-axis scale: fit_content keeps the aspect ratio (uniform), so a
+            # single fitted.width/max(w,h) would mis-map the hotspot on portrait art.
+            sx = fitted.width / max(1, image.width)
+            sy = fitted.height / max(1, image.height)
+            hx = round(mw.hotspots[index][0] * sx)
+            hy = round(mw.hotspots[index][1] * sy)
             hx = min(max(hx, 0), fitted.width - 1)
             hy = min(max(hy, 0), fitted.height - 1)
             frames.append(CursorFrame(fitted, (hx, hy), mw.document.frames[index].duration_ms))
@@ -942,9 +937,25 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
             result.append(CursorFrame(fitted, hot, f.duration_ms))
         return result
 
+    def _scale_frames(self, frames: list[CursorFrame], factor: float) -> list[CursorFrame]:
+        """Uniformly resize the sprite pixels by factor (Nearest-Neighbor), then
+        square-pad. This is what SCALE controls now: a 300% pack stores a 3x-larger
+        sprite inside the .ani/.cur file."""
+        result: list[CursorFrame] = []
+        for f in frames:
+            if factor != 1.0:
+                nw = max(1, round(f.image.width * factor))
+                nh = max(1, round(f.image.height * factor))
+                img = f.image.resize((nw, nh), Image.Resampling.NEAREST)
+                hx = round(f.hotspot[0] * factor)
+                hy = round(f.hotspot[1] * factor)
+                f = CursorFrame(img, (hx, hy), f.duration_ms)
+            result.append(f)
+        return self._pad_square(result)
+
     def _scaled_pack_files(self) -> dict[Path, bytes]:
-        """All assigned cursors, square-padded (used at Save time). The SCALE
-        slider only changes CursorBaseSize in install.bat, never the image."""
+        """All assigned cursors, pixel-scaled by the SCALE slider and square-padded."""
+        factor = self._scale_factor()
         result: dict[Path, bytes] = {}
         for role, path in self.assignments.items():
             if role in self.memory_cursors:
@@ -960,7 +971,7 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
             else:  # .cur
                 image = Image.open(io.BytesIO(data)).convert("RGBA")
                 frames = [CursorFrame(image, _cur_hotspot(data), 100)]
-            frames = self._pad_square(frames)
+            frames = self._scale_frames(frames, factor)
             result[path] = build_ani(frames) if len(frames) > 1 else build_cur(frames[0])
         return result
 
@@ -1321,7 +1332,6 @@ class MainWindow(FloatingTipOwner, QMainWindow):
                 dialog.name_edit.text().strip(),
                 dialog.assignments,
                 dialog._scaled_pack_files(),
-                dialog._base_size(),
             )
             QMessageBox.information(
                 self,
