@@ -174,10 +174,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "vi": "Chọn folder chứa file .cur/.ani",
         "en": "Choose a folder containing .cur/.ani files",
     },
-    "pack.scale_label": {"vi": "TỈ LỆ", "en": "SCALE"},
+    "pack.scale_label": {"vi": "CỠ CON TRỎ", "en": "POINTER SIZE"},
     "pack.tip.scale": {
-        "vi": "Cỡ cursor trên màn hình Windows luôn là 32×32 — thanh trượt này kéo giãn hình dạng để lấp nhiều ô vuông hơn khi bấm Save (50%–300%, snap 50%).",
-        "en": "Windows always renders cursors at 32x32 on screen — this slider stretches the shape to fill more of that square when you press Save (50%–300%, snaps to 50%).",
+        "vi": "Cỡ con trỏ khi cài (100% = mặc định 32px, 200% = 64px…). Không làm méo hình — chỉ đổi kích thước hiển thị trong Windows.",
+        "en": "Pointer size applied on install (100% = default 32px, 200% = 64px…). Does not distort the image — only changes the on-screen size in Windows.",
     },
     "warn.no_cursors": {
         "vi": "Folder không chứa file .cur hoặc .ani nào.",

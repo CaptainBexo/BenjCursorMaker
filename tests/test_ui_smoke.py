@@ -1202,7 +1202,7 @@ def test_pack_dialog_scale_slider_snaps_to_50():
 
 
 def test_pack_dialog_scale_applies_only_at_save(tmp_path):
-    """Gán cursor luôn lưu bản gốc; SCALE chỉ áp dụng trong _scaled_pack_files (lúc Save)."""
+    """SCALE chỉ đổi CursorBaseSize (kích thước render), nội dung cursor giữ nguyên."""
     import io
     from pathlib import Path
     from PIL import Image as PILImage
@@ -1220,21 +1220,22 @@ def test_pack_dialog_scale_applies_only_at_save(tmp_path):
     w.crop_canvas.set_image(w.document.frames[0].image)
     d = CursorPackDialog(w, w)
     d.scale_slider.setValue(300)
+    assert d._base_size() == 96
     d.list.setCurrentRow(0)
     d.assign_current_cursor()
     # gán xong: memory_cursors vẫn là bản GỐC (nội dung 100x100)
     data = d.memory_cursors["Arrow"]
     img = PILImage.open(io.BytesIO(data))
     assert img.size == (100, 100), img.size
-    # Save: scale 300% -> 100x100 kéo ngang thành 300x100 -> fit 256 -> canvas 256x256
+    # Save: nội dung KHÔNG bị kéo giãn — vẫn 100x100 (không méo)
     packed = d._scaled_pack_files()
     img2 = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
-    assert img2.size == (256, 256), img2.size
+    assert img2.size == (100, 100), img2.size
     w.close()
 
 
 def test_pack_dialog_scale_portrait_content_fills_more(tmp_path):
-    """Nội dung dọc 116x253: memory_cursors = nội dung gốc; Save 100% -> 253x253, Save 300% -> 256x256 (lấp ô vuông hơn)."""
+    """Nội dung dọc 116x253: memory_cursors = nội dung gốc; Save pad vuông 253x253, KHÔNG méo ở mọi scale."""
     import io
     from pathlib import Path
     from PIL import Image as PILImage
@@ -1261,27 +1262,21 @@ def test_pack_dialog_scale_portrait_content_fills_more(tmp_path):
     data = d.memory_cursors["Arrow"]
     img100 = PILImage.open(io.BytesIO(data))
     assert img100.size == (116, 253), img100.size
-    # Save 100%: pad vuông theo chiều cao
+    # Save: pad vuông theo chiều cao -> 253x253 (giữ tỉ lệ, không méo)
     packed = d._scaled_pack_files()
     img_sq = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
     assert img_sq.size == (253, 253), img_sq.size
-    # Save 300%: kéo ngang nội dung -> canvas 256x256, lấp gần hết ô vuông
+    # SCALE đổi CursorBaseSize, nội dung vẫn 253x253 (không méo)
     d.scale_slider.setValue(300)
+    assert d._base_size() == 96
     packed = d._scaled_pack_files()
     img300 = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
-    assert img300.size == (256, 256), img300.size
-    # vùng trung tâm có pixel nội dung (không trong suốt) — quét vùng, không chấm đơn
-    any_pixel = any(
-        img300.getpixel((x, y))[3] > 0
-        for x in range(110, 146)
-        for y in range(100, 156)
-    )
-    assert any_pixel
+    assert img300.size == (253, 253), img300.size
     w.close()
 
 
 def test_assign_file_stores_raw_and_scales_at_save(tmp_path):
-    """assign_file không scale; _scaled_pack_files áp scale cho cả file gán ngoài."""
+    """assign_file không scale nội dung; _scaled_pack_files chỉ pad vuông, SCALE đổi CursorBaseSize."""
     import io
     import unittest.mock as mock
     from pathlib import Path
@@ -1299,8 +1294,9 @@ def test_assign_file_stores_raw_and_scales_at_save(tmp_path):
         d.assign_file()
     assert d.memory_cursors.get("Arrow") is None  # raw — đọc từ đĩa lúc export
     d.scale_slider.setValue(300)
+    assert d._base_size() == 96
     packed = d._scaled_pack_files()
     assert any(k.name == "x.cur" for k in packed)
     img = PILImage.open(io.BytesIO(packed[next(k for k in packed if k.name == "x.cur")]))
-    assert img.size == (120, 120), img.size  # 40x40 -> kéo ngang 120x40 -> canvas vuông 120x120
+    assert img.size == (40, 40), img.size  # 40x40 giữ nguyên (không kéo giãn)
     d.close()

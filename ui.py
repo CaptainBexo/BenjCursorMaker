@@ -866,33 +866,10 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
     def _scale_factor(self) -> float:
         return self.scale_slider.value() / 100
 
-    def _stretch_frames(self, frames: list[CursorFrame], factor: float) -> list[CursorFrame]:
-        """Stretch the shorter axis by factor so the shape fills more of the square
-        Windows cursor box (on-screen cursor size is fixed at 32x32)."""
-        if factor == 1.0:
-            return frames
-        result: list[CursorFrame] = []
-        for f in frames:
-            w, h = f.image.size
-            if w <= h:
-                nw = max(1, round(w * factor))
-                content = f.image.resize((nw, h), Image.Resampling.NEAREST)
-                hsx, hsy = factor, 1.0
-            else:
-                nh = max(1, round(h * factor))
-                content = f.image.resize((w, nh), Image.Resampling.NEAREST)
-                hsx, hsy = 1.0, factor
-            fitted = fit_cursor(content)
-            # hotspot: scale with the content, then add the square-padding offset
-            content_scale = fitted.width / max(1, max(content.width, content.height))
-            dx = (fitted.width - content.width * content_scale) / 2
-            dy = (fitted.height - content.height * content_scale) / 2
-            hot = (
-                round(f.hotspot[0] * hsx * content_scale + dx),
-                round(f.hotspot[1] * hsy * content_scale + dy),
-            )
-            result.append(CursorFrame(fitted, hot, f.duration_ms))
-        return result
+    def _base_size(self) -> int:
+        """Map the SCALE slider to Windows CursorBaseSize (the real on-screen
+        pointer size). 100% -> 32 (default), 150% -> 48, 200% -> 64, 300% -> 96."""
+        return min(96, max(32, round(32 * self._scale_factor() / 16) * 16))
 
     def _store_memory_cursor(self, role: str) -> None:
         # store the CONTENT (fitted, unpadded) — the SCALE slider applies at Save time
@@ -961,8 +938,8 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
         return result
 
     def _scaled_pack_files(self) -> dict[Path, bytes]:
-        """All assigned cursors, square-padded and with the SCALE slider applied (used at Save time)."""
-        factor = self._scale_factor()
+        """All assigned cursors, square-padded (used at Save time). The SCALE
+        slider only changes CursorBaseSize in install.bat, never the image."""
         result: dict[Path, bytes] = {}
         for role, path in self.assignments.items():
             if role in self.memory_cursors:
@@ -978,7 +955,7 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
             else:  # .cur
                 image = Image.open(io.BytesIO(data)).convert("RGBA")
                 frames = [CursorFrame(image, _cur_hotspot(data), 100)]
-            frames = self._stretch_frames(frames, factor) if factor != 1.0 else self._pad_square(frames)
+            frames = self._pad_square(frames)
             result[path] = build_ani(frames) if len(frames) > 1 else build_cur(frames[0])
         return result
 
@@ -1339,6 +1316,7 @@ class MainWindow(FloatingTipOwner, QMainWindow):
                 dialog.name_edit.text().strip(),
                 dialog.assignments,
                 dialog._scaled_pack_files(),
+                dialog._base_size(),
             )
             QMessageBox.information(
                 self,

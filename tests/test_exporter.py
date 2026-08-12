@@ -126,10 +126,21 @@ def test_cursorpack_folder_named_after_scheme_contains_inf_bat_and_cursor(tmp_pa
     assert 'reg add "HKCU\\Control Panel\\Cursors" /v "Scheme Source"' in installer
     assert 'reg add "HKCU\\Control Panel\\Cursors\\Schemes"' in installer
     assert "RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters" in installer
+    # reload cursors immediately (SystemParametersInfo SPI_SETCURSORS) so the user
+    # doesn't have to press OK in Mouse Settings
+    assert "-EncodedCommand" in installer
     # lỗi phải hiển thị được (messagebox kèm bước lỗi), không pause trong cửa sổ ẩn
     assert "MessageBox]::Show" in installer
     assert "Installation failed at: %ERR_STEP%" in installer
     assert "Installed and activated: Neon" in installer
+
+
+def test_install_bat_sets_cursor_base_size_when_requested():
+    """base_size != 32 must write CursorBaseSize; 32 must leave it untouched."""
+    bat = build_install_bat("Neon", {"Arrow": "Normal.cur"}, base_size=64)
+    assert 'reg add "HKCU\\Control Panel\\Cursors" /v "CursorBaseSize" /t REG_DWORD /d 64 /f >nul' in bat
+    bat32 = build_install_bat("Neon", {"Arrow": "Normal.cur"})
+    assert "CursorBaseSize" not in bat32
 
 
 def test_exported_pack_files_have_no_bom_and_clean_endings(tmp_path):
@@ -266,15 +277,20 @@ def test_install_bat_scheme_list_follows_role_order():
 
 
 def test_install_bat_body_copies_files_and_sets_registry(tmp_path):
-    """Chạy THẬT phần thân :install (WINDIR trỏ temp, bỏ nâng quyền + messagebox):
-    copy file vào fake Windows + set HKCU. Backup/restore registry để không ảnh hưởng máy thật."""
+    """Run the real :install body with the registry path redirected to a SAFE test key
+    (HKCU\\Software\\BCM-Test\\...) and WINDIR pointed at a temp folder — the machine's
+    real cursor registry is never touched."""
     import subprocess
-    from winreg import HKEY_CURRENT_USER, OpenKey, QueryValueEx
+    from winreg import HKEY_CURRENT_USER, OpenKey, QueryValueEx, DeleteKey
 
     full = build_install_bat("Neon Test", {"Arrow": "Normal.cur", "Help": "Help.ani"})
     body = full.split("\r\n:install\r\n", 1)[1]
     body = body.split("echo Installing cursor files and Windows scheme...\r\n", 1)[1]
-    body = body.split('powershell -NoProfile -Command "Add-Type', 1)[0]  # bỏ messagebox modal
+    body = body.split("RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters", 1)[0]
+    # Redirect every registry write to a throwaway test key (never the real one).
+    body = body.replace(
+        r'HKCU\Control Panel\Cursors\Schemes', r'HKCU\Software\BCM-Test\Schemes'
+    ).replace(r'HKCU\Control Panel\Cursors', r'HKCU\Software\BCM-Test\Cursors')
     fake_win = tmp_path / "fake_windows"
     bat_file = tmp_path / "body.bat"
     (tmp_path / "Normal.cur").write_bytes(b"CUR")
@@ -283,29 +299,34 @@ def test_install_bat_body_copies_files_and_sets_registry(tmp_path):
         (
             "@echo off\r\nsetlocal DisableDelayedExpansion\r\n"
             'cd /d "%~dp0"\r\n'
-            f'set "WINDIR={fake_win}"\r\n:install\r\n{body}'
+            f'set "WINDIR={fake_win}"\r\n:install\r\n{body}\r\n'
         ).encode("utf-8")
     )
-    backup = tmp_path / "cursors_backup.reg"
-    subprocess.run(
-        ["reg", "export", r"HKCU\Control Panel\Cursors", str(backup), "/y"],
-        capture_output=True, timeout=30,
+    test_key = r"Software\BCM-Test"
+    r = subprocess.run(
+        ["cmd", "/c", str(bat_file)], capture_output=True, text=True,
+        timeout=60, creationflags=subprocess.CREATE_NO_WINDOW,
     )
+    assert r.returncode == 0, r.stderr
+    # files copied into the fake Windows\Cursors\<scheme>
+    assert (fake_win / "Cursors" / "Neon Test" / "Normal.cur").read_bytes() == b"CUR"
+    assert (fake_win / "Cursors" / "Neon Test" / "Help.ani").read_bytes() == b"ANI"
     try:
-        r = subprocess.run(
-            ["cmd", "/c", str(bat_file)], capture_output=True, text=True,
-            timeout=60, creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        assert r.returncode == 0, r.stderr
-        # file được copy vào fake Windows\Cursors\<scheme>
-        assert (fake_win / "Cursors" / "Neon Test" / "Normal.cur").read_bytes() == b"CUR"
-        assert (fake_win / "Cursors" / "Neon Test" / "Help.ani").read_bytes() == b"ANI"
-        # HKCU cursor values được set
-        with OpenKey(HKEY_CURRENT_USER, r"Control Panel\Cursors") as k:
+        # registry values landed in the test key, not the real cursor key
+        with OpenKey(HKEY_CURRENT_USER, rf"{test_key}\Cursors") as k:
             value, _ = QueryValueEx(k, "Arrow")
             assert value == r"%SystemRoot%\Cursors\Neon Test\Normal.cur", value
-        with OpenKey(HKEY_CURRENT_USER, r"Control Panel\Cursors\Schemes") as k:
+        with OpenKey(HKEY_CURRENT_USER, rf"{test_key}\Schemes") as k:
             value, _ = QueryValueEx(k, "Neon Test")
             assert "Cursors" in value and "Neon Test" in value, value
     finally:
-        subprocess.run(["reg", "import", str(backup)], capture_output=True, timeout=30)
+        # clean up the throwaway key tree
+        for sub in ("Schemes", "Cursors"):
+            try:
+                DeleteKey(HKEY_CURRENT_USER, rf"{test_key}\{sub}")
+            except OSError:
+                pass
+        try:
+            DeleteKey(HKEY_CURRENT_USER, test_key)
+        except OSError:
+            pass
