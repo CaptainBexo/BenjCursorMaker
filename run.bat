@@ -10,13 +10,15 @@ exit /b
 
 :run
 if not exist ".venv\Scripts\pythonw.exe" (
-    py -3.11 -m venv .venv
+    py -3.11 -m venv .venv 2>nul
+    if errorlevel 1 py -3 -m venv .venv 2>nul
+    if errorlevel 1 python -m venv .venv 2>nul
     if errorlevel 1 goto :error
     ".venv\Scripts\python.exe" -m pip install -r requirements.txt
     if errorlevel 1 goto :error
 )
-rem Dung pythonw THAT (GUI subsystem, khong console) cua interpreter goc,
-rem kem PYTHONPATH tro vao site-packages cua venv.
+rem Use the REAL pythonw (GUI subsystem, no console) of the base interpreter,
+rem with PYTHONPATH pointing at the venv site-packages.
 set "PYHOME="
 for /f "tokens=1,* delims== " %%a in ('findstr /b "home" ".venv\pyvenv.cfg"') do set "PYHOME=%%b"
 set "PYW=%PYHOME%\pythonw.exe"
@@ -31,6 +33,7 @@ exit /b 0
 
 :error
 echo.
-echo Khong the khoi dong Benj Cursor Maker.
+echo Could not start Benj Cursor Maker. Please install Python 3.11 or newer first.
 pause
 exit /b 1
+
