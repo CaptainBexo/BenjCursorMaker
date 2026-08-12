@@ -872,15 +872,20 @@ class CursorPackDialog(FloatingTipOwner, QDialog):
         return min(96, max(32, round(32 * self._scale_factor() / 16) * 16))
 
     def _store_memory_cursor(self, role: str) -> None:
-        # store the CONTENT (fitted, unpadded) — the SCALE slider applies at Save time
+        # Square-pad + uniform scale, hotspot mapped exactly like MainWindow.cursor_frames
+        # (content_scale must be per-axis: fit_cursor keeps the aspect ratio, so using
+        # fitted.width/max(w,h) shrank the hotspot on portrait images — the "hotspot
+        # drifts up-left" bug).
         mw = self.main_window
         images = mw.cropped_frames or [f.image for f in mw.document.frames]
         frames: list[CursorFrame] = []
         for index, image in enumerate(images):
-            fitted = fit_content(image)
+            fitted = fit_cursor(image)
             content_scale = fitted.width / max(1, max(image.width, image.height))
-            hx = round(mw.hotspots[index][0] * content_scale)
-            hy = round(mw.hotspots[index][1] * content_scale)
+            dx = (fitted.width - image.width * content_scale) / 2
+            dy = (fitted.height - image.height * content_scale) / 2
+            hx = round(mw.hotspots[index][0] * content_scale + dx)
+            hy = round(mw.hotspots[index][1] * content_scale + dy)
             hx = min(max(hx, 0), fitted.width - 1)
             hy = min(max(hy, 0), fitted.height - 1)
             frames.append(CursorFrame(fitted, (hx, hy), mw.document.frames[index].duration_ms))

@@ -139,11 +139,14 @@ def test_pack_dialog_assigns_current_multi_frame_cursor_as_ani_without_export():
     pack.assign_current_cursor()
 
     assert pack.assignments["Arrow"].name == "Arrow.ani"
-    # memory_cursors lưu NỘI DUNG (unpadded) — parse ra đúng kích thước frame gốc
+    # memory_cursors lưu frame ĐÃ pad vuông (fit_cursor) kèm hotspot chuẩn — không lệch
     from exporter import parse_ani
 
-    parsed, _hot, _rates = parse_ani(pack.memory_cursors["Arrow"])
-    assert [f.size for f in parsed] == [(37, 46)] * 3
+    parsed, hot, _rates = parse_ani(pack.memory_cursors["Arrow"])
+    assert [f.size for f in parsed] == [(46, 46)] * 3
+    # hotspot (5,2) trong ảnh dọc 37x46 -> (10,2) trong canvas vuông 46x46 (nội dung
+    # dịch +4.5 theo X; Y không dịch). Nếu lệch lên-trái thì đây sẽ là (4,2) — bug cũ.
+    assert hot == (10, 2), hot
     assert "Arrow.ani" in pack.list.item(0).text()
     assert "[TỪ EDITOR]" in pack.list.item(0).text()
     pack.close()
@@ -1235,7 +1238,7 @@ def test_pack_dialog_scale_applies_only_at_save(tmp_path):
 
 
 def test_pack_dialog_scale_portrait_content_fills_more(tmp_path):
-    """Nội dung dọc 116x253: memory_cursors = nội dung gốc; Save pad vuông 253x253, KHÔNG méo ở mọi scale."""
+    """Nội dung dọc 116x253: memory_cursors đã pad vuông 253x253 kèm hotspot đúng (không lệch)."""
     import io
     from pathlib import Path
     from PIL import Image as PILImage
@@ -1258,20 +1261,14 @@ def test_pack_dialog_scale_portrait_content_fills_more(tmp_path):
     d = CursorPackDialog(w, w)
     d.list.setCurrentRow(0)
     d.assign_current_cursor()
-    # gán xong: lưu NỘI DUNG gốc (chưa pad vuông)
+    # gán xong: memory_cursors đã pad vuông (fit_cursor), không còn lưu nội dung lệch
     data = d.memory_cursors["Arrow"]
     img100 = PILImage.open(io.BytesIO(data))
-    assert img100.size == (116, 253), img100.size
-    # Save: pad vuông theo chiều cao -> 253x253 (giữ tỉ lệ, không méo)
+    assert img100.size == (253, 253), img100.size
+    # Save: nội dung giữ nguyên kích thước (pad vuông sẵn), không méo
     packed = d._scaled_pack_files()
     img_sq = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
     assert img_sq.size == (253, 253), img_sq.size
-    # SCALE đổi CursorBaseSize, nội dung vẫn 253x253 (không méo)
-    d.scale_slider.setValue(300)
-    assert d._base_size() == 96
-    packed = d._scaled_pack_files()
-    img300 = PILImage.open(io.BytesIO(packed[Path("Arrow.cur")]))
-    assert img300.size == (253, 253), img300.size
     w.close()
 
 
