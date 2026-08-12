@@ -114,13 +114,41 @@ def test_cursorpack_folder_named_after_scheme_contains_inf_bat_and_cursor(tmp_pa
     assert (target / "install.bat").exists()
     assert (target / "README.txt").exists()
     assert (target / "Normal.cur").read_bytes() == b"CUR"
-    installer = (target / "install.bat").read_text(encoding="utf-8-sig")
+    installer = (target / "install.bat").read_text(encoding="utf-8")
     assert "InstallHinfSection DefaultInstall 132" in installer
     assert "Start-Process" in installer
     assert "-Verb RunAs" in installer
     assert 'reg add "HKCU\\Control Panel\\Cursors" /v "Arrow"' in installer
     assert 'reg add "HKCU\\Control Panel\\Cursors" /v "Scheme Source"' in installer
     assert "RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters" in installer
+    # lỗi phải hiển thị được (messagebox), không pause trong cửa sổ ẩn
+    assert "MessageBox]::Show" in installer
+
+
+def test_exported_pack_files_have_no_bom_and_clean_endings(tmp_path):
+    """install.bat / install.inf không BOM (cmd + setupapi hỏng nếu có BOM), README.txt tiếng Anh + CRLF sạch."""
+    target = export_cursorpack_folder(
+        tmp_path,
+        "Neon",
+        {"Arrow": Path("Normal.cur"), "Help": Path("Help.ani")},
+        {
+            Path("Normal.cur"): b"CUR",
+            Path("Help.ani"): b"ANI",
+        },
+    )
+    bat = (target / "install.bat").read_bytes()
+    inf = (target / "install.inf").read_bytes()
+    readme = (target / "README.txt").read_bytes()
+    # không BOM
+    assert bat[:3] != b"\xef\xbb\xbf", bat[:8]
+    assert inf[:3] != b"\xef\xbb\xbf", inf[:8]
+    # CRLF chuẩn, không double-CR
+    assert b"\r\n" in bat and b"\r\r\n" not in bat
+    assert b"\r\n" in inf and b"\r\r\n" not in inf
+    assert b"\r\r\n" not in readme
+    # README tiếng Anh
+    assert b"Double-click install.bat" in readme
+    assert b"Administrator permission" in readme
 
 
 def test_install_bat_hides_console():

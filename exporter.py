@@ -239,8 +239,7 @@ def build_install_bat(scheme_name: str, assignments: dict[str, str]) -> str:
         "exit /b 0",
         ":error",
         "echo.",
-        "echo Installation failed. Keep install.bat, install.inf and cursor files in the same folder.",
-        "pause",
+        'powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(\'Installation failed. Keep install.bat, install.inf and the cursor files in the same folder.\', \'Benj Cursor Maker\')" >nul 2>&1',
         "exit /b 1",
         "",
     ]
@@ -261,15 +260,18 @@ def export_cursorpack_folder(
     target = Path(parent_dir) / safe_pack_name(scheme_name)
     target.mkdir(parents=True, exist_ok=True)
     archived = {role: source.name for role, source in assignments.items()}
-    (target / "install.inf").write_bytes(build_install_inf(scheme_name, archived).encode("utf-8-sig"))
-    (target / "install.bat").write_bytes(build_install_bat(scheme_name, archived).encode("utf-8-sig"))
+    # Plain UTF-8, NO BOM: cmd.exe chokes on a BOM before @echo off, and
+    # setupapi may reject an install.inf that starts with a BOM.
+    (target / "install.inf").write_bytes(build_install_inf(scheme_name, archived).encode("utf-8"))
+    (target / "install.bat").write_bytes(build_install_bat(scheme_name, archived).encode("utf-8"))
     for source in dict.fromkeys(assignments.values()):
         payload = files[source] if files and source in files else source.read_bytes()
         (target / source.name).write_bytes(payload)
-    (target / "README.txt").write_text(
-        "Benj Cursor Maker\r\n\r\nDouble-click install.bat de tu cai va kich hoat cursor scheme.\r\n"
-        "Windows se hoi quyen Administrator.\r\n",
-        encoding="utf-8",
+    readme = (
+        "Benj Cursor Maker\n\n"
+        "Double-click install.bat to install and activate this cursor scheme.\n"
+        "Windows will ask for Administrator permission.\n"
     )
+    (target / "README.txt").write_bytes(readme.replace("\n", "\r\n").encode("utf-8"))
     return target
 
