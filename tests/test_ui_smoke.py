@@ -4,7 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication
 
-from ui import MainWindow, RETRO_STYLE, paint_canvas_background
+from ui import MainWindow, RETRO_STYLE, CropCanvas, paint_canvas_background
 
 import pytest
 
@@ -441,10 +441,10 @@ def test_canvas_zoom_keeps_pixel_under_cursor():
     app.processEvents()
     canvas.set_image(Image.new("RGBA", (32, 32)))
     canvas._layout_image()
-    assert canvas._scale == 11  # (400 - 24) // 32
+    assert canvas._scale == pytest.approx(11.75)  # (400 - 24) / 32 — fractional fit
     canvas.set_zoom(2.0)
     canvas._layout_image()
-    assert canvas._scale == 22, canvas._scale
+    assert canvas._scale == pytest.approx(23.5), canvas._scale
 
     canvas.set_zoom(1.0)
     canvas._layout_image()
@@ -539,8 +539,8 @@ def test_crop_canvas_zoom_control_updates_both_canvases():
 
     control.out_button.click()
     control.out_button.click()
-    assert window._zoom == 1.0
-    assert control.label.text() == "100%"
+    assert window._zoom == pytest.approx(2 / 3)  # zoom-out dưới 100% giờ hoạt động
+    assert control.label.text() == "67%"
     window.close()
 
 
@@ -1132,5 +1132,44 @@ def test_export_ani_status_shows_real_frame_dimensions(tmp_path):
         window.export_ani_file()
     assert out.exists()
     msg = window.statusBar().currentMessage()
-    assert "80" in msg and "40" in msg, msg  # 80×40
+    assert "80" in msg and "40" not in msg, msg  # 80×40 -> pad vuông 80×80 (Windows scale cursor không vuông bị bẹp)
     window.close()
+
+
+def test_crop_canvas_fits_image_larger_than_canvas():
+    """Ảnh cao hơn canvas phải zoom-out vừa khung (scale < 1), không bị cắt xén."""
+    from PyQt6.QtCore import QPoint
+    from PIL import Image as PILImage
+
+    app = QApplication.instance() or QApplication([])
+    canvas = CropCanvas()
+    canvas.resize(600, 600)
+    img = PILImage.new("RGBA", (100, 900), (255, 0, 0, 255))
+    canvas.set_image(img)
+    canvas._layout_image()
+    assert canvas._scale < 1.0, canvas._scale
+    assert canvas._target.height() <= canvas.height()
+    assert canvas._target.width() <= canvas.width()
+    # pixel mapping vẫn chính xác ở scale phân số (sai số làm tròn nhỏ)
+    px, py = canvas._to_image(canvas._target.center())
+    assert abs(px - 50) <= 3 and abs(py - 450) <= 3, (px, py)
+
+
+def test_crop_canvas_resets_zoom_on_new_image_size():
+    """Import ảnh kích thước khác -> reset zoom/pan (không giữ zoom ảnh cũ); cùng size (GIF frame) thì giữ."""
+    from PyQt6.QtCore import QPoint
+    from PIL import Image as PILImage
+
+    app = QApplication.instance() or QApplication([])
+    canvas = CropCanvas()
+    canvas.resize(400, 400)
+    img1 = PILImage.new("RGBA", (100, 100), (255, 0, 0, 255))
+    img2 = PILImage.new("RGBA", (200, 200), (255, 0, 0, 255))
+    canvas.set_image(img1)
+    canvas.set_zoom(4.0)
+    canvas.set_image(img2)  # size đổi -> reset
+    assert canvas._zoom == 1.0
+    assert canvas._pan == QPoint()
+    canvas.set_zoom(3.0)
+    canvas.set_image(img2)  # cùng size -> giữ zoom
+    assert canvas._zoom == 3.0

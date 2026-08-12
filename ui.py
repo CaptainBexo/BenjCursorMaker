@@ -324,7 +324,13 @@ class CropCanvas(QWidget):
         return QSize(600, 540)
 
     def set_image(self, image, reset_selection: bool = False) -> None:
+        old_size = self.image.size if self.image else None
         self.image = image
+        if old_size is not None and image is not None and image.size != old_size:
+            # new document: drop the old zoom/pan so it displays fresh
+            self._zoom = 1.0
+            self._pan = QPoint()
+            self.zoomChanged.emit(1.0)
         if image is None:
             self.selection = None
         elif reset_selection or self.selection is None:
@@ -351,9 +357,13 @@ class CropCanvas(QWidget):
             self._target = QRect()
             return
         margin = 18
-        fit = max(1, min((self.width() - margin * 2) // self.image.width, (self.height() - margin * 2) // self.image.height))
-        self._scale = max(1, int(fit * self._zoom))
-        draw_w, draw_h = self.image.width * self._scale, self.image.height * self._scale
+        # fractional fit so images larger than the canvas can always zoom out to fit
+        avail_w = max(1, self.width() - margin * 2)
+        avail_h = max(1, self.height() - margin * 2)
+        fit = min(avail_w / self.image.width, avail_h / self.image.height)
+        self._scale = max(0.05, fit * self._zoom)
+        draw_w = max(1, int(self.image.width * self._scale))
+        draw_h = max(1, int(self.image.height * self._scale))
         cx = (self.width() - draw_w) // 2
         cy = (self.height() - draw_h) // 2
         min_x, max_x = 8 - draw_w, self.width() - 8
@@ -379,7 +389,7 @@ class CropCanvas(QWidget):
         if not self.image:
             return
         factor = 1.25 if event.angleDelta().y() > 0 else 0.8
-        new_zoom = max(1.0, min(self._zoom * factor, 32.0))
+        new_zoom = max(0.1, min(self._zoom * factor, 32.0))
         if new_zoom == self._zoom:
             return
         self._layout_image()
@@ -395,8 +405,8 @@ class CropCanvas(QWidget):
         self.update()
 
     def _to_image(self, point: QPoint) -> tuple[int, int]:
-        x = min(max((point.x() - self._target.x()) // self._scale, 0), self.image.width)
-        y = min(max((point.y() - self._target.y()) // self._scale, 0), self.image.height)
+        x = min(max(int((point.x() - self._target.x()) / self._scale), 0), self.image.width)
+        y = min(max(int((point.y() - self._target.y()) / self._scale), 0), self.image.height)
         return int(x), int(y)
 
     def paintEvent(self, event) -> None:
@@ -407,21 +417,26 @@ class CropCanvas(QWidget):
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, tr("canvas.empty_crop"))
             return
         self._layout_image()
-        painter.drawTiledPixmap(self._target, transparency_pattern(self._scale))
+        painter.drawTiledPixmap(self._target, transparency_pattern(max(1, int(self._scale))))
         pixmap = pil_pixmap(self.image)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         painter.drawPixmap(self._target, pixmap)
         if self._scale >= 8:
             painter.setPen(QPen(QColor(24, 55, 34, 125), 1))
             for x in range(self.image.width + 1):
-                sx = self._target.x() + x * self._scale
+                sx = int(self._target.x() + x * self._scale)
                 painter.drawLine(sx, self._target.y(), sx, self._target.bottom())
             for y in range(self.image.height + 1):
-                sy = self._target.y() + y * self._scale
+                sy = int(self._target.y() + y * self._scale)
                 painter.drawLine(self._target.x(), sy, self._target.right(), sy)
         if self.selection:
             x1, y1, x2, y2 = self.selection
-            rect = QRect(self._target.x() + x1 * self._scale, self._target.y() + y1 * self._scale, (x2 - x1) * self._scale, (y2 - y1) * self._scale)
+            rect = QRect(
+                int(self._target.x() + x1 * self._scale),
+                int(self._target.y() + y1 * self._scale),
+                max(1, int((x2 - x1) * self._scale)),
+                max(1, int((y2 - y1) * self._scale)),
+            )
             painter.setPen(QPen(QColor("#47FF57"), 2, Qt.PenStyle.DashLine))
             painter.drawRect(rect)
 
@@ -481,16 +496,26 @@ class HotspotCanvas(QWidget):
         self._pan_drag: tuple[QPoint, QPoint] | None = None
 
     def set_image(self, image, hotspot=(0, 0)) -> None:
+        old_size = self.image.size if self.image else None
         self.image = image
+        if old_size is not None and image is not None and image.size != old_size:
+            # new document: drop the old zoom/pan so it displays fresh
+            self._zoom = 1.0
+            self._pan = QPoint()
+            self.zoomChanged.emit(1.0)
         self.hotspot = hotspot
         self.update()
 
     def _layout_image(self) -> None:
         if not self.image:
             return
-        fit = max(1, min((self.width() - 24) // self.image.width, (self.height() - 24) // self.image.height))
-        self._scale = max(1, int(fit * self._zoom))
-        draw_w, draw_h = self.image.width * self._scale, self.image.height * self._scale
+        # fractional fit so images larger than the canvas can always zoom out to fit
+        avail_w = max(1, self.width() - 24)
+        avail_h = max(1, self.height() - 24)
+        fit = min(avail_w / self.image.width, avail_h / self.image.height)
+        self._scale = max(0.05, fit * self._zoom)
+        draw_w = max(1, int(self.image.width * self._scale))
+        draw_h = max(1, int(self.image.height * self._scale))
         cx = (self.width() - draw_w) // 2
         cy = (self.height() - draw_h) // 2
         min_x, max_x = 8 - draw_w, self.width() - 8
@@ -516,7 +541,7 @@ class HotspotCanvas(QWidget):
         if not self.image:
             return
         factor = 1.25 if event.angleDelta().y() > 0 else 0.8
-        new_zoom = max(1.0, min(self._zoom * factor, 32.0))
+        new_zoom = max(0.1, min(self._zoom * factor, 32.0))
         if new_zoom == self._zoom:
             return
         self._layout_image()
@@ -539,31 +564,36 @@ class HotspotCanvas(QWidget):
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, tr("canvas.empty_hotspot"))
             return
         self._layout_image()
-        painter.drawTiledPixmap(self._target, transparency_pattern(self._scale))
+        painter.drawTiledPixmap(self._target, transparency_pattern(max(1, int(self._scale))))
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         painter.drawPixmap(self._target, pil_pixmap(self.image))
         if self._scale >= 6:
             painter.setPen(QPen(QColor(24, 55, 34, 135), 1))
             for x in range(self.image.width + 1):
-                sx = self._target.x() + x * self._scale
+                sx = int(self._target.x() + x * self._scale)
                 painter.drawLine(sx, self._target.y(), sx, self._target.bottom())
             for y in range(self.image.height + 1):
-                sy = self._target.y() + y * self._scale
+                sy = int(self._target.y() + y * self._scale)
                 painter.drawLine(self._target.x(), sy, self._target.right(), sy)
         x, y = self.hotspot
-        cx = self._target.x() + x * self._scale + self._scale // 2
-        cy = self._target.y() + y * self._scale + self._scale // 2
+        cx = int(self._target.x() + x * self._scale + self._scale / 2)
+        cy = int(self._target.y() + y * self._scale + self._scale / 2)
         painter.setPen(QPen(QColor("#B7FFBC"), 2))
         painter.drawLine(cx, self._target.top(), cx, self._target.bottom())
         painter.drawLine(self._target.left(), cy, self._target.right(), cy)
         painter.setPen(QPen(QColor("#47FF57"), 2))
-        painter.drawRect(self._target.x() + x * self._scale, self._target.y() + y * self._scale, self._scale, self._scale)
+        painter.drawRect(
+            int(self._target.x() + x * self._scale),
+            int(self._target.y() + y * self._scale),
+            max(1, int(self._scale)),
+            max(1, int(self._scale)),
+        )
 
     def _pixel_at(self, point: QPoint) -> tuple[int, int] | None:
         if not self.image or not self._target.contains(point):
             return None
-        x = min(max((point.x() - self._target.x()) // self._scale, 0), self.image.width - 1)
-        y = min(max((point.y() - self._target.y()) // self._scale, 0), self.image.height - 1)
+        x = min(max(int((point.x() - self._target.x()) / self._scale), 0), self.image.width - 1)
+        y = min(max(int((point.y() - self._target.y()) / self._scale), 0), self.image.height - 1)
         return int(x), int(y)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
@@ -1061,7 +1091,7 @@ class MainWindow(FloatingTipOwner, QMainWindow):
         self._set_zoom(min(self._zoom * 1.5, 32.0))
 
     def zoom_out(self) -> None:
-        self._set_zoom(max(self._zoom / 1.5, 1.0))
+        self._set_zoom(max(self._zoom / 1.5, 0.1))
 
     def _set_zoom(self, zoom: float) -> None:
         self._zoom = zoom
@@ -1158,8 +1188,12 @@ class MainWindow(FloatingTipOwner, QMainWindow):
         result = []
         for index, image in enumerate(images):
             fitted = fit_cursor(image)
-            hx = round(self.hotspots[index][0] * fitted.width / image.width)
-            hy = round(self.hotspots[index][1] * fitted.height / image.height)
+            # hotspot: scale with the content, then add the square-padding offset
+            content_scale = fitted.width / max(image.width, image.height)
+            dx = (fitted.width - image.width * content_scale) / 2
+            dy = (fitted.height - image.height * content_scale) / 2
+            hx = round(self.hotspots[index][0] * content_scale + dx)
+            hy = round(self.hotspots[index][1] * content_scale + dy)
             result.append(CursorFrame(fitted, (hx, hy), self.document.frames[index].duration_ms))
         return result
 

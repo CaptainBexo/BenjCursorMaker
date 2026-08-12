@@ -1,6 +1,34 @@
 from PIL import Image
 
-from image_processor import ImageDocument, crop_image, snap_rect
+from image_processor import ImageDocument, crop_image, fit_cursor, snap_rect
+
+
+def test_fit_cursor_pads_to_square():
+    """Windows scales any cursor into a square box (squishing non-square ones),
+    so fit_cursor must pad the canvas to a square with transparency."""
+    img = Image.new("RGBA", (116, 252), (0, 0, 0, 0))
+    img.putpixel((0, 0), (255, 0, 0, 255))
+    out = fit_cursor(img)
+    assert out.size == (252, 252), out.size
+    # content pixel keeps its relative position (padding offset 68 on X)
+    assert out.getpixel((68, 0)) == (255, 0, 0, 255)
+    assert out.getpixel((0, 0)) == (0, 0, 0, 0)  # padding transparent
+
+
+def test_fit_cursor_square_unchanged():
+    img = Image.new("RGBA", (100, 100), (255, 0, 0, 255))
+    out = fit_cursor(img)
+    assert out.size == (100, 100)
+    assert out.getpixel((50, 50)) == (255, 0, 0, 255)
+
+
+def test_fit_cursor_downscales_then_pads():
+    img = Image.new("RGBA", (232, 504), (0, 0, 0, 0))
+    img.putpixel((0, 0), (255, 0, 0, 255))
+    out = fit_cursor(img)
+    assert out.size == (256, 256), out.size
+    # after 256/504 scale: content 118x256, pad offset (256-118)//2 = 69
+    assert out.getpixel((69, 0)) == (255, 0, 0, 255)
 
 
 def test_snap_rect_uses_nearest_grid_boundaries():
