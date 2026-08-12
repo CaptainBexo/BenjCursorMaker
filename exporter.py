@@ -196,9 +196,28 @@ def build_install_inf(scheme_name: str, assignments: dict[str, str]) -> str:
 
 
 def build_install_bat(scheme_name: str, assignments: dict[str, str]) -> str:
-    """Create a self-elevating installer that installs and activates the scheme."""
+    """Create a self-elevating installer that installs and activates the scheme.
+
+    Pure cmd copy + reg add — no setupapi/INF dependency. Every step checks
+    errorlevel and reports the failing step in a visible message box; the
+    success path also shows a message box (the console itself is hidden).
+    """
     folder = safe_pack_name(scheme_name).replace("%", "").replace("!", "")
-    display_name = scheme_name.replace("%", "").replace("!", "").replace('"', "")
+    display = (
+        scheme_name.replace("%", "")
+        .replace("!", "")
+        .replace('"', "")
+        .replace("'", "")
+    )
+    files = list(dict.fromkeys(Path(src).name.replace('"', "") for src in assignments.values()))
+    # 15 Windows scheme fields (one per role, empty when unassigned).
+    scheme_fields = []
+    for role in ROLE_ORDER:
+        src = assignments.get(role)
+        scheme_fields.append(
+            f"%WINDIR%\\Cursors\\{folder}\\{Path(src).name.replace(chr(34), '')}" if src else ""
+        )
+    scheme_value = ",".join(scheme_fields)
     lines = [
         "@echo off",
         "setlocal DisableDelayedExpansion",
@@ -218,28 +237,40 @@ def build_install_bat(scheme_name: str, assignments: dict[str, str]) -> str:
         "  exit /b",
         ")",
         "echo Installing cursor files and Windows scheme...",
-        "RUNDLL32.EXE setupapi.dll,InstallHinfSection DefaultInstall 132 \"%~dp0install.inf\"",
-        "if errorlevel 1 goto :error",
         f'set "PACK_DIR=%WINDIR%\\Cursors\\{folder}"',
-        f'reg add "HKCU\\Control Panel\\Cursors" /ve /t REG_SZ /d "{display_name}" /f >nul',
+        'set "ERR_STEP=create folder"',
+        'if not exist "%PACK_DIR%" mkdir "%PACK_DIR%"',
+        "if errorlevel 1 goto :error",
+    ]
+    for fname in files:
+        lines += [
+            f'set "ERR_STEP=copy {fname}"',
+            f'copy /y "{fname}" "%PACK_DIR%\\" >nul',
+            "if errorlevel 1 goto :error",
+        ]
+    lines += [
+        f'set "ERR_STEP=set default scheme"',
+        f'reg add "HKCU\\Control Panel\\Cursors" /ve /t REG_SZ /d "{display}" /f >nul',
+        "if errorlevel 1 goto :error",
     ]
     for role, source in assignments.items():
         filename = Path(source).name.replace('"', "")
-        lines.append(
+        lines += [
+            f'set "ERR_STEP=set {role}"',
             f'reg add "HKCU\\Control Panel\\Cursors" /v "{role}" /t REG_EXPAND_SZ '
-            f'/d "%%SystemRoot%%\\Cursors\\{folder}\\{filename}" /f >nul'
-        )
+            f'/d "%%SystemRoot%%\\Cursors\\{folder}\\{filename}" /f >nul',
+            "if errorlevel 1 goto :error",
+        ]
     lines += [
+        'set "ERR_STEP=register scheme"',
         'reg add "HKCU\\Control Panel\\Cursors" /v "Scheme Source" /t REG_DWORD /d 1 /f >nul',
+        f'reg add "HKCU\\Control Panel\\Cursors\\Schemes" /v "{display}" /t REG_SZ /d "{scheme_value}" /f >nul',
+        "if errorlevel 1 goto :error",
         "RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters",
-        "echo.",
-        f'echo Installed and activated: {display_name}',
-        "echo You can close this window.",
-        "timeout /t 3 >nul",
+        f'powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(\'Installed and activated: {display}.\', \'Benj Cursor Maker\')" >nul 2>&1',
         "exit /b 0",
         ":error",
-        "echo.",
-        'powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(\'Installation failed. Keep install.bat, install.inf and the cursor files in the same folder.\', \'Benj Cursor Maker\')" >nul 2>&1',
+        'powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show(\'Installation failed at: %ERR_STEP%. Keep install.bat and the cursor files in the same folder.\', \'Benj Cursor Maker\')" >nul 2>&1',
         "exit /b 1",
         "",
     ]

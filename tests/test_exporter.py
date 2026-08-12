@@ -117,14 +117,19 @@ def test_cursorpack_folder_named_after_scheme_contains_inf_bat_and_cursor(tmp_pa
     assert (target / "README.txt").exists()
     assert (target / "Normal.cur").read_bytes() == b"CUR"
     installer = (target / "install.bat").read_text(encoding="utf-8")
-    assert "InstallHinfSection DefaultInstall 132" in installer
+    # copy + reg tự làm, không phụ thuộc setupapi/INF
+    assert "InstallHinfSection" not in installer
+    assert 'copy /y "Normal.cur" "%PACK_DIR%\\"' in installer
     assert "Start-Process" in installer
     assert "-Verb RunAs" in installer
     assert 'reg add "HKCU\\Control Panel\\Cursors" /v "Arrow"' in installer
     assert 'reg add "HKCU\\Control Panel\\Cursors" /v "Scheme Source"' in installer
+    assert 'reg add "HKCU\\Control Panel\\Cursors\\Schemes"' in installer
     assert "RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters" in installer
-    # lỗi phải hiển thị được (messagebox), không pause trong cửa sổ ẩn
+    # lỗi phải hiển thị được (messagebox kèm bước lỗi), không pause trong cửa sổ ẩn
     assert "MessageBox]::Show" in installer
+    assert "Installation failed at: %ERR_STEP%" in installer
+    assert "Installed and activated: Neon" in installer
 
 
 def test_exported_pack_files_have_no_bom_and_clean_endings(tmp_path):
@@ -244,7 +249,63 @@ def test_export_installer_into_folder_creates_clean_files(tmp_path):
     assert bat[:3] != b"\xef\xbb\xbf"
     assert inf[:3] != b"\xef\xbb\xbf"
     assert b"\r\r\n" not in bat and b"\r\r\n" not in inf
-    assert b'reg add "HKCU\Control Panel\Cursors" /v "Hand"' in bat
+    assert b'reg add "HKCU\\Control Panel\\Cursors" /v "Hand"' in bat
     assert b"Hand.ani" in inf
     readme = (tmp_path / "README.txt").read_bytes()
     assert b"Double-click install.bat" in readme
+
+
+def test_install_bat_scheme_list_follows_role_order():
+    """Danh sách scheme 15 ô phải theo ROLE_ORDER (Arrow ô 1, Hand ô 15) — không theo thứ tự dict."""
+    bat = build_install_bat("Pack", {"Hand": "hand.cur", "Arrow": "a.cur"})
+    line = [l for l in bat.split("\r\n") if "Schemes" in l][0]
+    fields = line.split('"')[5].split(",")
+    assert fields[0].endswith("a.cur"), fields[0]
+    assert fields[14].endswith("hand.cur"), fields[14]
+    assert fields[1] == ""  # Help chưa gán -> ô trống
+
+
+def test_install_bat_body_copies_files_and_sets_registry(tmp_path):
+    """Chạy THẬT phần thân :install (WINDIR trỏ temp, bỏ nâng quyền + messagebox):
+    copy file vào fake Windows + set HKCU. Backup/restore registry để không ảnh hưởng máy thật."""
+    import subprocess
+    from winreg import HKEY_CURRENT_USER, OpenKey, QueryValueEx
+
+    full = build_install_bat("Neon Test", {"Arrow": "Normal.cur", "Help": "Help.ani"})
+    body = full.split("\r\n:install\r\n", 1)[1]
+    body = body.split("echo Installing cursor files and Windows scheme...\r\n", 1)[1]
+    body = body.split('powershell -NoProfile -Command "Add-Type', 1)[0]  # bỏ messagebox modal
+    fake_win = tmp_path / "fake_windows"
+    bat_file = tmp_path / "body.bat"
+    (tmp_path / "Normal.cur").write_bytes(b"CUR")
+    (tmp_path / "Help.ani").write_bytes(b"ANI")
+    bat_file.write_bytes(
+        (
+            "@echo off\r\nsetlocal DisableDelayedExpansion\r\n"
+            'cd /d "%~dp0"\r\n'
+            f'set "WINDIR={fake_win}"\r\n:install\r\n{body}'
+        ).encode("utf-8")
+    )
+    backup = tmp_path / "cursors_backup.reg"
+    subprocess.run(
+        ["reg", "export", r"HKCU\Control Panel\Cursors", str(backup), "/y"],
+        capture_output=True, timeout=30,
+    )
+    try:
+        r = subprocess.run(
+            ["cmd", "/c", str(bat_file)], capture_output=True, text=True,
+            timeout=60, creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        assert r.returncode == 0, r.stderr
+        # file được copy vào fake Windows\Cursors\<scheme>
+        assert (fake_win / "Cursors" / "Neon Test" / "Normal.cur").read_bytes() == b"CUR"
+        assert (fake_win / "Cursors" / "Neon Test" / "Help.ani").read_bytes() == b"ANI"
+        # HKCU cursor values được set
+        with OpenKey(HKEY_CURRENT_USER, r"Control Panel\Cursors") as k:
+            value, _ = QueryValueEx(k, "Arrow")
+            assert value == r"%SystemRoot%\Cursors\Neon Test\Normal.cur", value
+        with OpenKey(HKEY_CURRENT_USER, r"Control Panel\Cursors\Schemes") as k:
+            value, _ = QueryValueEx(k, "Neon Test")
+            assert "Cursors" in value and "Neon Test" in value, value
+    finally:
+        subprocess.run(["reg", "import", str(backup)], capture_output=True, timeout=30)
